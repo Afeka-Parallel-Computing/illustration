@@ -1,527 +1,523 @@
 <!DOCTYPE html>
 <html lang="he" dir="rtl">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pipeline Linear Equations Solver</title>
-    <script src="https://d3js.org/d3.v7.min.js"></script>
-    <style>
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #f4f7f6;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            padding: 20px;
-            color: #333;
-        }
-        .container {
-            background: white;
-            padding: 30px;
-            border-radius: 12px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-            width: 100%;
-            max-width: 1100px;
-            text-align: center;
-        }
-        h1 { color: #2c3e50; margin-bottom: 5px; }
-        .subtitle { color: #7f8c8d; margin-bottom: 25px; font-size: 14px; }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>מערכת משוואות משולשת בצנרת – סוג 3</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #F4F7FB;
+    --surface: #FFFFFF;
+    --card: #EEF3F9;
+    --ink: #0B1F3A;
+    --text: #1A2433;
+    --muted: #5B6B7F;
+    --line: #C9D3DF;
+    --orange: #E8692C;
+    --orange-soft: #FDEBDF;
+    --blue: #1F5C99;
+    --blue-soft: #E3EDF8;
+    --teal: #2A9D8F;
+    --teal-soft: #DDF1EE;
+    --grey-soft: #F1F4F8;
+    --x0: #E8692C;
+    --x1: #1F5C99;
+    --x2: #2A9D8F;
+    --x3: #B7841A;
+    --on-accent: #FFFFFF;
+    --shadow: 0 2px 10px rgba(11, 31, 58, 0.08);
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #08162A;
+      --surface: #0F223D;
+      --card: #16304F;
+      --ink: #E6EDF5;
+      --text: #E6EDF5;
+      --muted: #9AAAC0;
+      --line: #2C4668;
+      --orange: #F28F5C;
+      --orange-soft: #3A2A22;
+      --blue: #7FB8F0;
+      --blue-soft: #1A3556;
+      --teal: #4CC3B4;
+      --teal-soft: #163B3A;
+      --grey-soft: #132A47;
+      --x0: #F28F5C;
+      --x1: #7FB8F0;
+      --x2: #4CC3B4;
+      --x3: #F2B134;
+      --on-accent: #08162A;
+      --shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+      color-scheme: dark;
+    }
+  }
 
-        .system-display {
-            background: #fffbea;
-            border: 1px solid #f1c40f;
-            padding: 15px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            font-family: monospace;
-            font-size: 16px;
-            text-align: left;
-            direction: ltr;
-            display: inline-block;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-        }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  :root {
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Assistant", "Segoe UI", Arial, sans-serif;
+    font-size: 17px;
+    line-height: 1.55;
+  }
+  .page { max-width: 1180px; margin: 0 auto; padding: 28px 20px 40px; }
 
-        .controls {
-            margin-bottom: 15px;
-            display: flex;
-            gap: 15px;
-            justify-content: center;
-            align-items: center;
-            flex-wrap: wrap;
-        }
-        .speed-control {
-            margin-bottom: 25px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 10px;
-            background: #f0f3f4;
-            padding: 10px 20px;
-            border-radius: 8px;
-        }
-        button {
-            padding: 10px 20px;
-            border: none;
-            border-radius: 5px;
-            background-color: #3498db;
-            color: white;
-            cursor: pointer;
-            font-weight: bold;
-            font-size: 15px;
-            transition: background 0.3s;
-            min-width: 110px;
-        }
-        button:hover { background-color: #2980b9; }
-        button:disabled { background-color: #bdc3c7; cursor: not-allowed; }
+  header h1 {
+    margin: 0;
+    font-size: clamp(26px, 3.2vw, 36px);
+    font-weight: 800;
+    color: var(--ink);
+    line-height: 1.2;
+  }
+  header p { margin: 6px 0 0; color: var(--muted); font-size: 18px; max-width: 70ch; }
 
-        #play-btn { background-color: #2ecc71; }
-        #play-btn:hover { background-color: #27ae60; }
-        #play-btn.playing { background-color: #e74c3c; }
-        #play-btn.playing:hover { background-color: #c0392b; }
+  .m {
+    font-family: "JetBrains Mono", Consolas, "Courier New", monospace;
+    direction: ltr;
+    unicode-bidi: isolate;
+    white-space: nowrap;
+  }
+  .v0 { color: var(--x0); font-weight: 700; }
+  .v1 { color: var(--x1); font-weight: 700; }
+  .v2 { color: var(--x2); font-weight: 700; }
+  .v3 { color: var(--x3); font-weight: 700; }
 
-        input[type="range"] { width: 150px; cursor: pointer; }
+  .top { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: 20px; margin-top: 22px; align-items: stretch; }
+  .panel { background: var(--surface); border-radius: 12px; box-shadow: var(--shadow); padding: 18px 20px; }
+  .panel h2 { margin: 0 0 10px; font-size: 19px; color: var(--ink); }
 
-        #visualizer {
-            height: 320px;
-            width: 100%;
-            margin-top: 10px;
-            overflow-x: auto;
-            background: #fff;
-            border: 1px solid #ecf0f1;
-            border-radius: 8px;
-            position: relative;
-        }
+  .system { direction: ltr; text-align: left; font-size: 17px; line-height: 1.9; }
+  .system .row { display: flex; gap: 14px; align-items: baseline; }
+  .system .who { color: var(--muted); width: 2.4em; font-weight: 700; }
+  .rule { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); color: var(--muted); font-size: 16px; }
 
-        .status-msg {
-            margin-top: 15px;
-            font-size: 1.05em;
-            min-height: 4em;
-            color: #555;
-            background: #f9f9f9;
-            padding: 15px;
-            border-right: 4px solid #e67e22;
-            text-align: right;
-            border-radius: 4px;
-            line-height: 1.6;
-        }
+  .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  button {
+    font: inherit; font-weight: 700; font-size: 16px;
+    border: none; border-radius: 8px; padding: 9px 16px; cursor: pointer;
+    background: var(--card); color: var(--ink);
+  }
+  button.primary { background: var(--ink); color: var(--surface); }
+  button.play { background: var(--orange); color: var(--on-accent); min-width: 104px; }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+  button:focus-visible, input:focus-visible { outline: 3px solid var(--orange); outline-offset: 2px; }
+  .speed { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 15px; margin-inline-start: auto; }
+  .speed input { width: 120px; accent-color: var(--orange); }
+  .cycle-box { margin-top: 14px; display: flex; align-items: baseline; gap: 10px; }
+  .cycle-num { font-size: 40px; font-weight: 800; color: var(--orange); line-height: 1; }
+  .cycle-of { color: var(--muted); }
+  .keys { margin-top: 8px; color: var(--muted); font-size: 14px; }
 
-        /* SVG Styles */
-        .proc-rect {
-            fill: #fdf2e9;
-            stroke: #e67e22;
-            stroke-width: 3px;
-            rx: 8px;
-            ry: 8px;
-        }
-        .proc-label {
-            font-weight: bold;
-            font-size: 18px;
-            fill: #d35400;
-        }
-        .proc-eq {
-            font-size: 14px;
-            fill: #34495e;
-            font-family: monospace;
-        }
-        .proc-solved {
-            font-weight: bold;
-            font-size: 16px;
-            fill: #27ae60;
-        }
-        .arrow-line {
-            stroke: #bdc3c7;
-            stroke-width: 2px;
-            marker-end: url(#arrowhead);
-        }
-        .wire-val-circle {
-            fill: #ebf5fb;
-            stroke: #2980b9;
-            stroke-width: 2px;
-        }
-        .wire-val-text {
-            font-weight: bold;
-            font-size: 14px;
-            fill: #2980b9;
-            pointer-events: none;
-        }
-    </style>
+  .stage { margin-top: 20px; padding: 14px 10px 8px; }
+  .stage svg { width: 100%; height: auto; display: block; direction: ltr; }
+  .flow-note { text-align: center; color: var(--muted); font-size: 14px; margin: 2px 0 6px; }
+
+  svg .box { fill: var(--grey-soft); stroke: var(--line); stroke-width: 2; transition: fill .35s, stroke .35s; }
+  svg .box.recv { fill: var(--blue-soft); stroke: var(--blue); stroke-width: 3.5; }
+  svg .box.comp { fill: var(--orange-soft); stroke: var(--orange); stroke-width: 3.5; }
+  svg .box.done { fill: var(--teal-soft); stroke: var(--teal); }
+  svg .pname { font: 800 22px "Assistant", Arial, sans-serif; fill: var(--ink); }
+  svg .chip { rx: 11; }
+  svg .chiptext { font: 700 14px "Assistant", Arial, sans-serif; fill: var(--on-accent); direction: rtl; unicode-bidi: embed; }
+  svg .eq { font: 500 13px "JetBrains Mono", Consolas, monospace; fill: var(--text); }
+  svg .sum { font: 500 14px "JetBrains Mono", Consolas, monospace; fill: var(--muted); }
+  svg .res { font: 700 15px "JetBrains Mono", Consolas, monospace; fill: var(--ink); }
+  svg .res.pending { fill: var(--muted); font-weight: 500; }
+  svg .wire { stroke: var(--line); stroke-width: 2.5; }
+  svg .wirehead { fill: var(--line); }
+  svg .tok rect { rx: 15; }
+  svg .tok text { font: 700 14px "JetBrains Mono", Consolas, monospace; fill: var(--on-accent); }
+
+  .bottom { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 20px; margin-top: 20px; }
+  .story ul { margin: 0; padding: 0; list-style: none; }
+  .story li { padding: 6px 0; border-bottom: 1px solid var(--line); }
+  .story li:last-child { border-bottom: none; }
+  .story .p { font-weight: 800; color: var(--ink); margin-inline-end: 6px; }
+  .insight { margin-top: 12px; padding: 12px 14px; border-radius: 10px; background: var(--orange-soft); color: var(--text); font-weight: 600; }
+  .insight:empty { display: none; }
+
+  .solution { display: flex; gap: 10px; flex-wrap: wrap; direction: ltr; justify-content: flex-start; }
+  .sol { min-width: 92px; padding: 10px 12px; border-radius: 10px; background: var(--card); text-align: center; }
+  .sol .m { font-size: 20px; }
+  .sol.known { background: var(--surface); outline: 2px solid currentColor; }
+  .sol small { display: block; color: var(--muted); font-family: "Assistant", Arial, sans-serif; font-size: 13px; direction: rtl; }
+
+  .timeline-wrap { overflow-x: auto; margin-top: 4px; }
+  table.tl { border-collapse: separate; border-spacing: 4px; direction: ltr; min-width: 560px; width: 100%; table-layout: fixed; }
+  .tl th { font-size: 14px; color: var(--muted); font-weight: 700; padding: 2px 4px; }
+  .tl th.cur { color: var(--orange); }
+  .tl td { height: 48px; border-radius: 8px; background: var(--grey-soft); text-align: center; font-size: 13px; line-height: 1.2; }
+  .tl td.recv { background: var(--blue-soft); color: var(--blue); }
+  .tl td.comp { background: var(--orange); color: var(--on-accent); }
+  .tl td.cur { outline: 2px solid var(--orange); }
+  .tl td .lbl { display: block; font-family: "Assistant", Arial, sans-serif; font-weight: 600; direction: rtl; }
+  .tl td .m { font-weight: 700; }
+  .tl .rowhead { font-weight: 800; color: var(--ink); background: transparent; }
+  .tl col.head { width: 48px; }
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 8px; color: var(--muted); font-size: 14px; }
+  .legend span::before { content: ""; display: inline-block; width: 14px; height: 14px; border-radius: 4px; vertical-align: -2px; margin-inline-end: 6px; }
+  .legend .lr::before { background: var(--blue-soft); outline: 1px solid var(--blue); }
+  .legend .lc::before { background: var(--orange); }
+  .legend .lw::before { background: var(--grey-soft); outline: 1px solid var(--line); }
+
+  @media (max-width: 860px) {
+    .top, .bottom { grid-template-columns: 1fr; }
+    .speed { margin-inline-start: 0; }
+  }
+</style>
 </head>
 <body>
+<div class="page">
+  <header>
+    <h1>מערכת משוואות משולשת בצנרת</h1>
+    <p>צנרת מסוג 3 – העברה מוקדמת: כל תהליך מעביר כל ערך הלאה ברגע שהוא מגיע, ורק אחר כך משתמש בו לחישוב שלו.</p>
+  </header>
 
-<div class="container">
-    <h1>פתרון מערכת משוואות בצנרת (Pipeline Back-Substitution)</h1>
-    <div class="subtitle">התהליכים מקבלים נעלמים מוכנים, מציבים במשוואה שלהם, ומחשבים את הנעלם הבא.</div>
-
-    <!-- The linear system being solved -->
-    <div class="system-display">
-        <strong>מערכת המשוואות (a * x = b):</strong><br>
-        P0: 2*x0 = 4<br>
-        P1: 1*x0 + 3*x1 = 11<br>
-        P2: 2*x0 + 1*x1 + 4*x2 = 19<br>
-        P3: 1*x0 + 2*x1 + 1*x2 + 2*x3 = 13
+  <section class="top">
+    <div class="panel">
+      <h2>המערכת – שורה לכל תהליך</h2>
+      <div class="system m" id="system"></div>
+      <div class="rule">
+        <span class="m">x<sub>i</sub> = ( b<sub>i</sub> − Σ<sub>j&lt;i</sub> a<sub>ij</sub>·x<sub>j</sub> ) / a<sub>ii</sub></span>
+      </div>
     </div>
-
-    <div class="controls">
-        <button id="reset-btn">איפוס מלא</button>
-        <button id="prev-btn" disabled>צעד אחורה</button>
-        <button id="next-btn">צעד הבא</button>
-        <button id="play-btn">הרצה (Play)</button>
+    <div class="panel">
+      <h2>שליטה</h2>
+      <div class="controls">
+        <button id="reset" class="primary">להתחלה</button>
+        <button id="prev">צעד אחורה</button>
+        <button id="next">צעד הבא</button>
+        <button id="play" class="play">הרצה</button>
+        <label class="speed">לאט
+          <input type="range" id="speed" min="1" max="5" value="3" aria-label="מהירות">
+          מהר</label>
+      </div>
+      <div class="cycle-box">
+        <span class="cycle-num" id="cycleNum">0</span>
+        <span class="cycle-of" id="cycleOf">מחזור מתוך 7</span>
+      </div>
+      <div class="keys">חצים ימינה ושמאלה או PageDown ו-PageUp לצעדים, רווח להרצה ועצירה.</div>
     </div>
+  </section>
 
-    <div class="speed-control">
-        <label for="speed-slider"><strong>מהירות:</strong> לאט</label>
-        <input type="range" id="speed-slider" min="1" max="5" value="3" dir="ltr">
-        <label for="speed-slider">מהר</label>
+  <section class="panel stage">
+    <div class="flow-note">כיוון הזרימה: משמאל לימין, כל תהליך מדבר רק עם השכן שאחריו</div>
+    <svg id="svg" viewBox="0 0 1150 230" role="img" aria-label="ארבעה תהליכים בצנרת"></svg>
+  </section>
+
+  <section class="bottom">
+    <div class="panel story">
+      <h2 id="storyTitle">מצב התחלתי</h2>
+      <ul id="story"></ul>
+      <div class="insight" id="insight"></div>
     </div>
+    <div class="panel">
+      <h2>הפתרון שנבנה</h2>
+      <div class="solution" id="solution"></div>
+    </div>
+  </section>
 
-    <div id="visualizer"></div>
-    <div id="status" class="status-msg">טוען...</div>
+  <section class="panel" style="margin-top:20px">
+    <h2>דיאגרמת מרחב–זמן</h2>
+    <div class="timeline-wrap"><table class="tl" id="tl"></table></div>
+    <div class="legend"><span class="lr">קבלה, העברה ועדכון הסכום</span><span class="lc">חישוב הנעלם ושליחתו</span><span class="lw">ממתין</span></div>
+  </section>
 </div>
 
 <script>
-    // --- System Definition ---
-    // Equations:
-    // 2x0 = 4                       => x0 = 2
-    // 1x0 + 3x1 = 11                => 1(2) + 3x1 = 11  => 3x1 = 9   => x1 = 3
-    // 2x0 + 1x1 + 4x2 = 19          => 2(2) + 1(3) + 4x2 = 19 => 4x2 = 12 => x2 = 3
-    // 1x0 + 2x1 + 1x2 + 2x3 = 13    => 1(2) + 2(3) + 1(3) + 2x3 = 13 => 2x3 = 2 => x3 = 1
+(() => {
+  // ---------- the system: a[i][j], j <= i ----------
+  const A = [[2], [1, 3], [2, 1, 4], [1, 2, 1, 2]];
+  const B = [4, 11, 19, 13];
+  const N = A.length;
+  const SUB = "₀₁₂₃₄₅₆₇₈₉";
+  const sub = (k) => String(k).split("").map((d) => SUB[+d]).join("");
+  const xs = (j) => "x" + sub(j);
+  const fmt = (v) => (Number.isInteger(v) ? String(v) : v.toFixed(2));
+  const vx = (j) => `<span class="v${j}">${xs(j)}</span>`;
+  const mm = (s) => `<span class="m">${s}</span>`;
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-    const N = 4;
-    const equations = [
-        { coeffs: [2], b: 4, label: "2*x0=4" },
-        { coeffs: [1, 3], b: 11, label: "1*x0+3*x1=11" },
-        { coeffs: [2, 1, 4], b: 19, label: "2*x0+1*x1+4*x2=19" },
-        { coeffs: [1, 2, 1, 2], b: 13, label: "1*x0+2*x1+1*x2+2*x3=13" }
-    ];
+  // equation text: a·x terms, coefficient 1 omitted
+  const term = (a, j) => (a === 1 ? "" : a + "·") + xs(j);
+  const eqText = (i) => A[i].map((a, j) => term(a, j)).join(" + ") + " = " + B[i];
+  const eqHtml = (i) => A[i].map((a, j) => (a === 1 ? "" : a + "·") + vx(j)).join(" + ") + " = " + B[i];
 
-    let states = [];
+  document.getElementById("system").innerHTML = A.map((_, i) =>
+    `<div class="row"><span class="who">P${i}</span><span>${eqHtml(i)}</span></div>`).join("");
 
-    function generateStates() {
-        states = [];
-        // nodes[i] holds the known variables received/computed by Process i
-        let nodes = Array.from({length: N}, () => ({ computed: false, knownVars: [] }));
-        // wires[i] holds a queue of variables in transit TO Process i
-        let wires = Array.from({length: N + 1}, () => []);
-
-        states.push({
-            cycle: 0,
-            nodes: JSON.parse(JSON.stringify(nodes)),
-            wires: JSON.parse(JSON.stringify(wires)),
-            desc: "מצב התחלתי. התהליכים ממתינים לחישוב. P0 יתחיל לחשב את x0 ללא תלויות."
-        });
-
-        let t = 1;
-        // The simulation runs until P3 computes its value AND sends it out (for visualization)
-        let done = false;
-
-        while(!done) {
-            let next_nodes = JSON.parse(JSON.stringify(nodes));
-            let next_wires = Array.from({length: N + 1}, () => []);
-            let desc_parts = [];
-            done = true;
-
-            for(let i = 0; i < N; i++) {
-                let node = next_nodes[i];
-
-                // 1. Receive incoming variables from wire[i]
-                if (wires[i].length > 0) {
-                    // In real pipeline, receives one by one. We simulate receiving all arrived this cycle.
-                    while(wires[i].length > 0) {
-                        let incomingVar = wires[i].shift();
-                        node.knownVars.push(incomingVar);
-                        // Immediately forward the received variable to the next process
-                        next_wires[i+1].push(incomingVar);
-                        desc_parts.push(`P${i} קלט את x${incomingVar.id}=${incomingVar.val} והעביר אותו הלאה ל-P${i+1}.`);
-                    }
-                }
-
-                // 2. Check if this node can compute its own unknown
-                if (!node.computed) {
-                    done = false; // System not finished yet
-
-                    // Does it have all required previous unknowns?
-                    // P_i needs x_0 ... x_{i-1} -> which is exactly i variables
-                    if (node.knownVars.length === i) {
-                        // Compute!
-                        let eq = equations[i];
-                        let sum = 0;
-                        for(let j = 0; j < i; j++) {
-                            // Find the value of x_j in knownVars
-                            let varObj = node.knownVars.find(v => v.id === j);
-                            sum += eq.coeffs[j] * varObj.val;
-                        }
-                        let xi_val = (eq.b - sum) / eq.coeffs[i];
-
-                        node.computed = true;
-                        node.myResult = { id: i, val: xi_val };
-
-                        // Send my computed result to the next process
-                        next_wires[i+1].push(node.myResult);
-
-                        if(i === 0) {
-                            desc_parts.push(`P${i} חישב את x${i} = ${xi_val} והעביר הלאה.`);
-                        } else {
-                            desc_parts.push(`P${i} סיים להציב, חישב את x${i} = ${xi_val} והעביר הלאה.`);
-                        }
-                    } else {
-                        // Still waiting for inputs
-                        if(i !== 0) {
-                            // don't spam waiting messages unless something arrived
-                        }
-                    }
-                } else {
-                    // Node already computed, just passing through if needed
-                    // (Forwarding handled in step 1)
-                }
-            }
-
-            // Check if last wire has anything (meaning P3 finished and outputted)
-            if (next_wires[N].length < N && !next_nodes[N-1].computed) {
-                done = false;
-            }
-
-            if (desc_parts.length > 0) {
-                states.push({
-                    cycle: t,
-                    nodes: JSON.parse(JSON.stringify(next_nodes)),
-                    wires: JSON.parse(JSON.stringify(next_wires)),
-                    desc: `<strong>מחזור ${t}:</strong><br>` + desc_parts.join("<br>")
-                });
-            }
-
-            wires = next_wires;
-            nodes = next_nodes;
-            t++;
-
-            // Safety break
-            if(t > 15) break;
-        }
-
-        states.push({
-            cycle: t,
-            nodes: JSON.parse(JSON.stringify(nodes)),
-            wires: Array.from({length: N + 1}, () => []),
-            desc: "<strong>החישוב הושלם!</strong> כל המשוואות נפתרו באמצעות הצנרת."
-        });
-    }
-
-    // --- Visualization Logic ---
-    let stepIndex = 0;
-    let playTimeout = null;
-    let isPlaying = false;
-    const speedMap = { 1: 3000, 2: 2200, 3: 1500, 4: 900, 5: 400 };
-
-    const svgWidth = 1000;
-    const svgHeight = 250;
-
-    const rectWidth = 160;
-    const rectHeight = 100;
-    const startX = 60;
-    const spacing = 230;
-    const nodeY = 80;
-
-    const svg = d3.select("#visualizer")
-        .append("svg")
-        .attr("width", svgWidth)
-        .attr("height", svgHeight);
-
-    // Arrowhead
-    svg.append("defs").append("marker")
-        .attr("id", "arrowhead")
-        .attr("viewBox", "-0 -5 10 10")
-        .attr("refX", 8)
-        .attr("refY", 0)
-        .attr("orient", "auto")
-        .attr("markerWidth", 6)
-        .attr("markerHeight", 6)
-        .append("svg:path")
-        .attr("d", "M 0,-5 L 10 ,0 L 0,5")
-        .attr("fill", "#bdc3c7");
-
-    // Draw static skeleton
-    for(let i=0; i<N; i++) {
-        let x = startX + i * spacing;
-
-        // Arrow pointing TO this node (except P0 which has no input)
-        if (i > 0) {
-            svg.append("line")
-                .attr("class", "arrow-line")
-                .attr("x1", x - spacing + rectWidth)
-                .attr("y1", nodeY + rectHeight/2)
-                .attr("x2", x - 5)
-                .attr("y2", nodeY + rectHeight/2);
-        }
-
-        // Arrow OUT of last node
-        if (i === N - 1) {
-            svg.append("line")
-                .attr("class", "arrow-line")
-                .attr("x1", x + rectWidth)
-                .attr("y1", nodeY + rectHeight/2)
-                .attr("x2", x + rectWidth + 50)
-                .attr("y2", nodeY + rectHeight/2);
-        }
-    }
-
-    const nodesGroup = svg.append("g");
-    const wiresGroup = svg.append("g");
-
-    function renderState(state) {
-
-        // Render Nodes
-        let procSelection = nodesGroup.selectAll("g.proc").data(state.nodes);
-
-        let procEnter = procSelection.enter()
-            .append("g")
-            .attr("class", "proc")
-            .attr("transform", (d, i) => `translate(${startX + i * spacing}, ${nodeY})`);
-
-        procEnter.append("rect")
-            .attr("class", "proc-rect")
-            .attr("width", rectWidth)
-            .attr("height", rectHeight);
-
-        procEnter.append("text")
-            .attr("class", "proc-label")
-            .attr("x", rectWidth/2)
-            .attr("y", 25)
-            .attr("text-anchor", "middle")
-            .text((d,i) => `P${i}`);
-
-        procEnter.append("text")
-            .attr("class", "proc-eq")
-            .attr("x", rectWidth/2)
-            .attr("y", 50)
-            .attr("text-anchor", "middle")
-            .text((d,i) => equations[i].label);
-
-        procEnter.append("text")
-            .attr("class", "proc-solved")
-            .attr("x", rectWidth/2)
-            .attr("y", 80)
-            .attr("text-anchor", "middle");
-
-        let procMerge = procSelection.merge(procEnter);
-
-        procMerge.select(".proc-solved")
-            .text(d => d.computed ? `x${d.myResult.id} = ${d.myResult.val}` : "ממתין להצבות...");
-
-        // Render Wires (Moving values)
-        // Flatten wire arrays for rendering
-        let wireData = [];
-        state.wires.forEach((wireQueue, wireIdx) => {
-            wireQueue.forEach((valObj, queuePos) => {
-                wireData.push({
-                    wireIdx: wireIdx,
-                    queuePos: queuePos, // to offset multiple items on same wire
-                    id: valObj.id,
-                    val: valObj.val
-                });
-            });
-        });
-
-        // Unique key based on value ID and wire location to animate properly
-        let wireSelection = wiresGroup.selectAll("g.wire-val").data(wireData, d => `var${d.id}-wire${d.wireIdx}`);
-
-        wireSelection.exit().remove();
-
-        let wireEnter = wireSelection.enter()
-            .append("g")
-            .attr("class", "wire-val")
-            .attr("transform", d => {
-                let xBase = (d.wireIdx === 0) ? 0 : (startX + (d.wireIdx-1)*spacing + rectWidth + 20);
-                // Offset if multiple items on the wire
-                let x = xBase + (d.queuePos * 30);
-                return `translate(${x}, ${nodeY + rectHeight/2})`;
-            });
-
-        wireEnter.append("circle")
-            .attr("class", "wire-val-circle")
-            .attr("r", 0)
-            .transition().duration(200)
-            .attr("r", 16);
-
-        wireEnter.append("text")
-            .attr("class", "wire-val-text")
-            .attr("text-anchor", "middle")
-            .attr("dy", ".35em");
-
-        let wireMerge = wireSelection.merge(wireEnter);
-        wireMerge.select("text").text(d => `x${d.id}`);
-
-        // Update Text Status
-        document.getElementById("status").innerHTML = state.desc;
-
-        // Buttons
-        document.getElementById("prev-btn").disabled = (stepIndex === 0);
-        document.getElementById("next-btn").disabled = (stepIndex === states.length - 1);
-
-        if (stepIndex === states.length - 1 && isPlaying) {
-            pause();
-        }
-    }
-
-    // --- Controls ---
-    function init() {
-        generateStates();
-        pause();
-        goToStep(0);
-    }
-
-    function goToStep(index) {
-        if(index < 0) index = 0;
-        if(index >= states.length) index = states.length - 1;
-        stepIndex = index;
-        renderState(states[stepIndex]);
-    }
-
-    function togglePlay() {
-        if (isPlaying) pause();
-        else play();
-    }
-
-    function play() {
-        if (stepIndex >= states.length - 1) goToStep(0);
-        isPlaying = true;
-        let btn = document.getElementById("play-btn");
-        btn.innerText = "השהה (Pause)";
-        btn.classList.add("playing");
-        executePlayLoop();
-    }
-
-    function executePlayLoop() {
-        if (!isPlaying) return;
-        if (stepIndex < states.length - 1) {
-            goToStep(stepIndex + 1);
-            let intervalTime = speedMap[document.getElementById("speed-slider").value];
-            playTimeout = setTimeout(executePlayLoop, intervalTime);
+  // ---------- lock-step simulation: one action per process per cycle ----------
+  // An action is either: receive one value (forward it at once, then add a·x to the sum),
+  // or: compute my unknown once all earlier values have arrived, and send it.
+  function simulate() {
+    const proc = A.map(() => ({ sum: 0, terms: [], recv: 0, x: null, inbox: [] }));
+    const known = Array(N).fill(null);
+    const states = [{ cycle: 0, procs: clone(proc), known: [...known], sends: [], actions: A.map((_, i) => ({ i, type: "wait" })) }];
+    for (let c = 1; c < 50; c++) {
+      const sends = [], actions = [];
+      proc.forEach((p, i) => {
+        if (p.inbox.length) {
+          const v = p.inbox.shift();
+          if (i < N - 1) sends.push({ from: i, to: i + 1, j: v.j, val: v.val });
+          p.sum += A[i][v.j] * v.val;
+          p.terms.push(A[i][v.j] + "·" + fmt(v.val));
+          p.recv++;
+          actions.push({ i, type: "recv", j: v.j, val: v.val, fwd: i < N - 1 });
+        } else if (p.x === null && p.recv === i) {
+          p.x = (B[i] - p.sum) / A[i][i];
+          known[i] = p.x;
+          if (i < N - 1) sends.push({ from: i, to: i + 1, j: i, val: p.x });
+          actions.push({ i, type: "comp", j: i, val: p.x });
         } else {
-            pause();
+          actions.push({ i, type: p.x === null ? "wait" : "done", need: p.recv });
         }
+      });
+      sends.forEach((s) => proc[s.to].inbox.push({ j: s.j, val: s.val }));
+      states.push({ cycle: c, procs: clone(proc), known: [...known], sends, actions });
+      if (proc.every((p) => p.x !== null && p.inbox.length === 0)) break;
     }
+    return states;
+  }
+  function clone(o) { return JSON.parse(JSON.stringify(o)); }
 
-    function pause() {
-        isPlaying = false;
-        clearTimeout(playTimeout);
-        let btn = document.getElementById("play-btn");
-        btn.innerText = "הרצה (Play)";
-        btn.classList.remove("playing");
-    }
+  const states = simulate();
+  const T = states.length - 1;
+  document.getElementById("cycleOf").textContent = `מחזור מתוך ${T}`;
 
-    document.getElementById("reset-btn").addEventListener("click", init);
-    document.getElementById("next-btn").addEventListener("click", () => { pause(); goToStep(stepIndex + 1); });
-    document.getElementById("prev-btn").addEventListener("click", () => { pause(); goToStep(stepIndex - 1); });
-    document.getElementById("play-btn").addEventListener("click", togglePlay);
+  // ---------- SVG skeleton ----------
+  const NS = "http://www.w3.org/2000/svg";
+  const svg = document.getElementById("svg");
+  const BW = 232, BH = 178, BY = 22, GAP = 62, X0 = 20;
+  const bx = (i) => X0 + i * (BW + GAP);
+  const midY = BY + BH / 2;
+  const el = (tag, attrs, parent) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    (parent || svg).appendChild(e);
+    return e;
+  };
 
-    document.getElementById("speed-slider").addEventListener("input", () => {
-        if (isPlaying) {
-            clearTimeout(playTimeout);
-            executePlayLoop();
-        }
+  for (let i = 0; i < N - 1; i++) {
+    const x1 = bx(i) + BW + 4, x2 = bx(i + 1) - 6;
+    el("line", { class: "wire", x1, y1: midY, x2: x2 - 8, y2: midY });
+    el("path", { class: "wirehead", d: `M ${x2 - 10} ${midY - 6} L ${x2} ${midY} L ${x2 - 10} ${midY + 6} Z` });
+  }
+
+  const boxes = A.map((_, i) => {
+    const g = el("g", { transform: `translate(${bx(i)}, ${BY})` });
+    const rect = el("rect", { class: "box", width: BW, height: BH, rx: 14 }, g);
+    el("text", { class: "pname", x: 16, y: 34 }, g).textContent = "P" + i;
+    const chip = el("rect", { class: "chip", x: BW - 120, y: 14, width: 106, height: 26 }, g);
+    const chipText = el("text", { class: "chiptext", x: BW - 67, y: 32, "text-anchor": "middle" }, g);
+    const eq = el("text", { class: "eq", x: BW / 2, y: 76, "text-anchor": "middle" }, g);
+    eq.textContent = eqText(i);
+    el("line", { x1: 14, x2: BW - 14, y1: 92, y2: 92, stroke: "var(--line)", "stroke-width": 1 }, g);
+    const sum = el("text", { class: "sum", x: BW / 2, y: 122, "text-anchor": "middle" }, g);
+    const res = el("text", { class: "res", x: BW / 2, y: 158, "text-anchor": "middle" }, g);
+    return { rect, chip, chipText, sum, res };
+  });
+  const tokLayer = el("g", {});
+
+  // ---------- rendering ----------
+  let step = 0, timer = null, playing = false;
+  const speedMs = { 1: 3200, 2: 2400, 3: 1700, 4: 1100, 5: 650 };
+  const varColor = (j) => getComputedStyle(document.documentElement).getPropertyValue("--x" + (j % 4)).trim();
+
+  function chipStyle(type) {
+    const cs = getComputedStyle(document.documentElement);
+    return { recv: cs.getPropertyValue("--blue"), comp: cs.getPropertyValue("--orange"),
+      done: cs.getPropertyValue("--teal"), wait: cs.getPropertyValue("--muted") }[type].trim();
+  }
+
+  function renderBoxes(s) {
+    s.procs.forEach((p, i) => {
+      const a = s.actions[i];
+      const b = boxes[i];
+      let type = a.type;
+      if (s.cycle === 0) type = "wait";
+      b.rect.setAttribute("class", "box " + (type === "wait" ? "" : type));
+      b.chip.setAttribute("fill", chipStyle(type));
+      b.chipText.textContent = type === "recv" ? "מקבל ומעביר"
+        : type === "comp" ? "מחשב"
+        : type === "done" ? "סיים"
+        : (p.recv < i ? "ממתין ל-" + xs(p.recv) : "ממתין");
+      b.sum.textContent = i === 0 ? "אין ערכים קודמים"
+        : p.terms.length ? "Σ = " + p.terms.join(" + ") + (p.terms.length > 1 ? " = " + fmt(p.sum) : "")
+        : "Σ = 0";
+      if (i === 0 && b.sum.textContent === "אין ערכים קודמים") b.sum.setAttribute("style", "direction: rtl; unicode-bidi: embed; font-family: Assistant, Arial, sans-serif; font-size: 15px");
+      if (p.x !== null) {
+        b.res.textContent = i === 0
+          ? `${xs(i)} = ${B[i]} / ${A[i][i]} = ${fmt(p.x)}`
+          : `${xs(i)} = (${B[i]} − ${fmt(p.sum)}) / ${A[i][i]} = ${fmt(p.x)}`;
+        b.res.setAttribute("class", "res");
+      } else {
+        b.res.textContent = `${xs(i)} = ?`;
+        b.res.setAttribute("class", "res pending");
+      }
     });
+  }
 
-    init();
+  function makeToken(send) {
+    const g = el("g", { class: "tok" }, tokLayer);
+    const label = xs(send.j) + "=" + fmt(send.val);
+    const w = 14 + label.length * 9;
+    el("rect", { x: -w / 2, y: -15, width: w, height: 30, fill: varColor(send.j) }, g);
+    el("text", { x: 0, y: 5, "text-anchor": "middle" }, g).textContent = label;
+    g.dataset.to = send.to;
+    return g;
+  }
+  const restX = (to) => bx(to) - GAP / 2 - 2;
+
+  function renderTokens(s, animate, dur) {
+    const old = [...tokLayer.children];
+    if (animate && !reduceMotion) {
+      old.forEach((g) => {
+        const to = +g.dataset.to;
+        const from = restX(to), target = bx(to) + 30;
+        const a = g.animate([
+          { transform: `translate(${from}px, ${midY}px)`, opacity: 1 },
+          { transform: `translate(${target}px, ${midY}px)`, opacity: 0 }],
+          { duration: dur * 0.35, easing: "ease-in", fill: "forwards" });
+        a.onfinish = () => g.remove();
+      });
+    } else old.forEach((g) => g.remove());
+
+    s.sends.forEach((send) => {
+      const g = makeToken(send);
+      const end = restX(send.to), start = bx(send.from) + BW - 30;
+      g.setAttribute("transform", `translate(${end}, ${midY})`);
+      if (animate && !reduceMotion) {
+        g.animate([
+          { transform: `translate(${start}px, ${midY}px)`, opacity: 0 },
+          { transform: `translate(${start + 20}px, ${midY}px)`, opacity: 1, offset: 0.25 },
+          { transform: `translate(${end}px, ${midY}px)`, opacity: 1 }],
+          { duration: dur * 0.55, delay: dur * 0.2, easing: "ease-out", fill: "backwards" });
+      }
+    });
+  }
+
+  function storyLine(a, s) {
+    const i = a.i;
+    if (s.cycle === 0) return i === 0
+      ? `<span class="p">P0</span>לא תלוי באף ערך – יחשב את ${mm(vx(0))} כבר במחזור הראשון.`
+      : `<span class="p">P${i}</span>צריך ${i === 1 ? "ערך אחד" : i + " ערכים"} לפני שיוכל לחשב את ${mm(vx(i))}.`;
+    if (a.type === "recv") {
+      const fwd = a.fwd ? `, העביר אותו מיד ל-P${i + 1}` : "";
+      return `<span class="p">P${i}</span>קיבל ${mm(vx(a.j) + " = " + fmt(a.val))}${fwd}, והוסיף לסכום ${mm(A[i][a.j] + "·" + fmt(a.val) + " = " + fmt(A[i][a.j] * a.val))}.`;
+    }
+    if (a.type === "comp") {
+      const p = s.procs[i];
+      const calc = i === 0 ? `${B[i]} / ${A[i][i]}` : `(${B[i]} − ${fmt(p.sum)}) / ${A[i][i]}`;
+      const to = i < N - 1 ? ` ושלח ל-P${i + 1}` : " – זה הנעלם האחרון";
+      return `<span class="p">P${i}</span>חישב ${mm(vx(i) + " = " + calc + " = " + fmt(p.x))}${to}.`;
+    }
+    if (a.type === "done") return `<span class="p">P${i}</span>סיים את העבודה שלו.`;
+    return `<span class="p">P${i}</span>ממתין ל-${mm(vx(s.procs[i].recv))}.`;
+  }
+
+  const insights = {
+    1: "רק P0 עובד – הצנרת מתמלאת.",
+    3: "P2 כבר מקבל את x₀ בזמן ש-P1 עדיין מחשב את x₁ – זו ההעברה המוקדמת.",
+    4: "שלושה תהליכים עובדים באותו מחזור: P2 ו-P3 מקבלים, וכל ערך ממשיך הלאה בלי לחכות.",
+  };
+
+  function renderStory(s) {
+    document.getElementById("storyTitle").textContent = s.cycle === 0 ? "מצב התחלתי" : `מחזור ${s.cycle}`;
+    document.getElementById("story").innerHTML = s.actions.map((a) => `<li>${storyLine(a, s)}</li>`).join("");
+    let ins = insights[s.cycle] || "";
+    if (s.cycle === T) ins = `הושלם אחרי ${T} מחזורים = 2n − 1. בלי חפיפה כל תהליך היה מחכה שהקודם יסיים לגמרי.`;
+    document.getElementById("insight").textContent = ins;
+  }
+
+  function renderSolution(s) {
+    document.getElementById("solution").innerHTML = s.known.map((v, j) => {
+      const who = v === null ? "עוד לא ידוע" : `חושב ב-P${j}`;
+      return `<div class="sol ${v === null ? "" : "known"} v${j}"><span class="m">${xs(j)} = ${v === null ? "?" : fmt(v)}</span><small>${who}</small></div>`;
+    }).join("");
+  }
+
+  function renderTimeline(s) {
+    let h = "<colgroup><col class=\"head\">" + "<col>".repeat(T) + "</colgroup><tr><th></th>";
+    for (let c = 1; c <= T; c++) h += `<th class="${c === s.cycle ? "cur" : ""}">${c}</th>`;
+    h += "</tr>";
+    for (let i = 0; i < N; i++) {
+      h += `<tr><td class="rowhead">P${i}</td>`;
+      for (let c = 1; c <= T; c++) {
+        const a = states[c].actions[i];
+        const shown = c <= s.cycle;
+        const cls = (shown && (a.type === "recv" || a.type === "comp") ? a.type : "") + (c === s.cycle ? " cur" : "");
+        let inner = "";
+        if (shown && a.type === "recv") inner = `<span class="lbl">קבלה</span><span class="m">${xs(a.j)}</span>`;
+        if (shown && a.type === "comp") inner = `<span class="lbl">חישוב</span><span class="m">${xs(a.j)}</span>`;
+        h += `<td class="${cls}">${inner}</td>`;
+      }
+      h += "</tr>";
+    }
+    h += `<tr><th></th><th colspan="${T}" style="text-align:center">מחזור</th></tr>`;
+    document.getElementById("tl").innerHTML = h;
+  }
+
+  function render(animate) {
+    const s = states[step];
+    const dur = speedMs[document.getElementById("speed").value];
+    renderBoxes(s);
+    renderTokens(s, animate, dur);
+    renderStory(s);
+    renderSolution(s);
+    renderTimeline(s);
+    document.getElementById("cycleNum").textContent = s.cycle;
+    document.getElementById("prev").disabled = step === 0;
+    document.getElementById("next").disabled = step === T;
+  }
+
+  function go(k, animate) {
+    k = Math.max(0, Math.min(T, k));
+    const forward = k === step + 1;
+    step = k;
+    render(animate && forward);
+  }
+
+  function setPlaying(on) {
+    playing = on;
+    clearTimeout(timer);
+    const b = document.getElementById("play");
+    b.textContent = on ? "עצירה" : "הרצה";
+    if (on) {
+      if (step === T) go(0, false);
+      tick();
+    }
+  }
+  function tick() {
+    if (!playing) return;
+    if (step >= T) { setPlaying(false); return; }
+    go(step + 1, true);
+    timer = setTimeout(tick, speedMs[document.getElementById("speed").value]);
+  }
+
+  document.getElementById("reset").onclick = () => { setPlaying(false); go(0, false); };
+  document.getElementById("prev").onclick = () => { setPlaying(false); go(step - 1, false); };
+  document.getElementById("next").onclick = () => { setPlaying(false); go(step + 1, true); };
+  document.getElementById("play").onclick = () => setPlaying(!playing);
+  document.addEventListener("keydown", (e) => {
+    if (e.target.tagName === "INPUT") return;
+    if (["ArrowRight", "ArrowDown", "PageDown"].includes(e.key)) { e.preventDefault(); setPlaying(false); go(step + 1, true); }
+    else if (["ArrowLeft", "ArrowUp", "PageUp"].includes(e.key)) { e.preventDefault(); setPlaying(false); go(step - 1, false); }
+    else if (e.key === " ") { e.preventDefault(); setPlaying(!playing); }
+    else if (e.key === "Home") { setPlaying(false); go(0, false); }
+  });
+
+  render(false);
+})();
 </script>
-
 </body>
 </html>
