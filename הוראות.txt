@@ -1,3 +1,5 @@
 בניית קישור לקבצי ה-html
 
 https://afeka-parallel-computing.github.io/illustration/pipeline_equations.html
+https://afeka-parallel-computing.github.io/illustration/pipeline_sort.html
+https://afeka-parallel-computing.github.io/illustration/pipeline_array_sort.html
