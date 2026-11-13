@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pipeline Linear Equations Solver</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f7f6;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            color: #333;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 1100px;
+            text-align: center;
+        }
+        h1 { color: #2c3e50; margin-bottom: 5px; }
+        .subtitle { color: #7f8c8d; margin-bottom: 25px; font-size: 14px; }
+
+        .system-display {
+            background: #fffbea;
+            border: 1px solid #f1c40f;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-family: monospace;
+            font-size: 16px;
+            text-align: left;
+            direction: ltr;
+            display: inline-block;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+
+        .controls {
+            margin-bottom: 15px;
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .speed-control {
+            margin-bottom: 25px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            background: #f0f3f4;
+            padding: 10px 20px;
+            border-radius: 8px;
+        }
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            background-color: #3498db;
+            color: white;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 15px;
+            transition: background 0.3s;
+            min-width: 110px;
+        }
+        button:hover { background-color: #2980b9; }
+        button:disabled { background-color: #bdc3c7; cursor: not-allowed; }
+
+        #play-btn { background-color: #2ecc71; }
+        #play-btn:hover { background-color: #27ae60; }
+        #play-btn.playing { background-color: #e74c3c; }
+        #play-btn.playing:hover { background-color: #c0392b; }
+
+        input[type="range"] { width: 150px; cursor: pointer; }
+
+        #visualizer {
+            height: 320px;
+            width: 100%;
+            margin-top: 10px;
+            overflow-x: auto;
+            background: #fff;
+            border: 1px solid #ecf0f1;
+            border-radius: 8px;
+            position: relative;
+        }
+
+        .status-msg {
+            margin-top: 15px;
+            font-size: 1.05em;
+            min-height: 4em;
+            color: #555;
+            background: #f9f9f9;
+            padding: 15px;
+            border-right: 4px solid #e67e22;
+            text-align: right;
+            border-radius: 4px;
+            line-height: 1.6;
+        }
+
+        /* SVG Styles */
+        .proc-rect {
+            fill: #fdf2e9;
+            stroke: #e67e22;
+            stroke-width: 3px;
+            rx: 8px;
+            ry: 8px;
+        }
+        .proc-label {
+            font-weight: bold;
+            font-size: 18px;
+            fill: #d35400;
+        }
+        .proc-eq {
+            font-size: 14px;
+            fill: #34495e;
+            font-family: monospace;
+        }
+        .proc-solved {
+            font-weight: bold;
+            font-size: 16px;
+            fill: #27ae60;
+        }
+        .arrow-line {
+            stroke: #bdc3c7;
+            stroke-width: 2px;
+            marker-end: url(#arrowhead);
+        }
+        .wire-val-circle {
+            fill: #ebf5fb;
+            stroke: #2980b9;
+            stroke-width: 2px;
+        }
+        .wire-val-text {
+            font-weight: bold;
+            font-size: 14px;
+            fill: #2980b9;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>פתרון מערכת משוואות בצנרת (Pipeline Back-Substitution)</h1>
+    <div class="subtitle">התהליכים מקבלים נעלמים מוכנים, מציבים במשוואה שלהם, ומחשבים את הנעלם הבא.</div>
+
+    <!-- The linear system being solved -->
+    <div class="system-display">
+        <strong>מערכת המשוואות (a * x = b):</strong><br>
+        P0: 2*x0 = 4<br>
+        P1: 1*x0 + 3*x1 = 11<br>
+        P2: 2*x0 + 1*x1 + 4*x2 = 19<br>
+        P3: 1*x0 + 2*x1 + 1*x2 + 2*x3 = 13
+    </div>
+
+    <div class="controls">
+        <button id="reset-btn">איפוס מלא</button>
+        <button id="prev-btn" disabled>צעד אחורה</button>
+        <button id="next-btn">צעד הבא</button>
+        <button id="play-btn">הרצה (Play)</button>
+    </div>
+
+    <div class="speed-control">
+        <label for="speed-slider"><strong>מהירות:</strong> לאט</label>
+        <input type="range" id="speed-slider" min="1" max="5" value="3" dir="ltr">
+        <label for="speed-slider">מהר</label>
+    </div>
+
+    <div id="visualizer"></div>
+    <div id="status" class="status-msg">טוען...</div>
+</div>
+
+<script>
+    // --- System Definition ---
+    // Equations:
+    // 2x0 = 4                       => x0 = 2
+    // 1x0 + 3x1 = 11                => 1(2) + 3x1 = 11  => 3x1 = 9   => x1 = 3
+    // 2x0 + 1x1 + 4x2 = 19          => 2(2) + 1(3) + 4x2 = 19 => 4x2 = 12 => x2 = 3
+    // 1x0 + 2x1 + 1x2 + 2x3 = 13    => 1(2) + 2(3) + 1(3) + 2x3 = 13 => 2x3 = 2 => x3 = 1
+
+    const N = 4;
+    const equations = [
+        { coeffs: [2], b: 4, label: "2*x0=4" },
+        { coeffs: [1, 3], b: 11, label: "1*x0+3*x1=11" },
+        { coeffs: [2, 1, 4], b: 19, label: "2*x0+1*x1+4*x2=19" },
+        { coeffs: [1, 2, 1, 2], b: 13, label: "1*x0+2*x1+1*x2+2*x3=13" }
+    ];
+
+    let states = [];
+
+    function generateStates() {
+        states = [];
+        // nodes[i] holds the known variables received/computed by Process i
+        let nodes = Array.from({length: N}, () => ({ computed: false, knownVars: [] }));
+        // wires[i] holds a queue of variables in transit TO Process i
+        let wires = Array.from({length: N + 1}, () => []);
+
+        states.push({
+            cycle: 0,
+            nodes: JSON.parse(JSON.stringify(nodes)),
+            wires: JSON.parse(JSON.stringify(wires)),
+            desc: "מצב התחלתי. התהליכים ממתינים לחישוב. P0 יתחיל לחשב את x0 ללא תלויות."
+        });
+
+        let t = 1;
+        // The simulation runs until P3 computes its value AND sends it out (for visualization)
+        let done = false;
+
+        while(!done) {
+            let next_nodes = JSON.parse(JSON.stringify(nodes));
+            let next_wires = Array.from({length: N + 1}, () => []);
+            let desc_parts = [];
+            done = true;
+
+            for(let i = 0; i < N; i++) {
+                let node = next_nodes[i];
+
+                // 1. Receive incoming variables from wire[i]
+                if (wires[i].length > 0) {
+                    // In real pipeline, receives one by one. We simulate receiving all arrived this cycle.
+                    while(wires[i].length > 0) {
+                        let incomingVar = wires[i].shift();
+                        node.knownVars.push(incomingVar);
+                        // Immediately forward the received variable to the next process
+                        next_wires[i+1].push(incomingVar);
+                        desc_parts.push(`P${i} קלט את x${incomingVar.id}=${incomingVar.val} והעביר אותו הלאה ל-P${i+1}.`);
+                    }
+                }
+
+                // 2. Check if this node can compute its own unknown
+                if (!node.computed) {
+                    done = false; // System not finished yet
+
+                    // Does it have all required previous unknowns?
+                    // P_i needs x_0 ... x_{i-1} -> which is exactly i variables
+                    if (node.knownVars.length === i) {
+                        // Compute!
+                        let eq = equations[i];
+                        let sum = 0;
+                        for(let j = 0; j < i; j++) {
+                            // Find the value of x_j in knownVars
+                            let varObj = node.knownVars.find(v => v.id === j);
+                            sum += eq.coeffs[j] * varObj.val;
+                        }
+                        let xi_val = (eq.b - sum) / eq.coeffs[i];
+
+                        node.computed = true;
+                        node.myResult = { id: i, val: xi_val };
+
+                        // Send my computed result to the next process
+                        next_wires[i+1].push(node.myResult);
+
+                        if(i === 0) {
+                            desc_parts.push(`P${i} חישב את x${i} = ${xi_val} והעביר הלאה.`);
+                        } else {
+                            desc_parts.push(`P${i} סיים להציב, חישב את x${i} = ${xi_val} והעביר הלאה.`);
+                        }
+                    } else {
+                        // Still waiting for inputs
+                        if(i !== 0) {
+                            // don't spam waiting messages unless something arrived
+                        }
+                    }
+                } else {
+                    // Node already computed, just passing through if needed
+                    // (Forwarding handled in step 1)
+                }
+            }
+
+            // Check if last wire has anything (meaning P3 finished and outputted)
+            if (next_wires[N].length < N && !next_nodes[N-1].computed) {
+                done = false;
+            }
+
+            if (desc_parts.length > 0) {
+                states.push({
+                    cycle: t,
+                    nodes: JSON.parse(JSON.stringify(next_nodes)),
+                    wires: JSON.parse(JSON.stringify(next_wires)),
+                    desc: `<strong>מחזור ${t}:</strong><br>` + desc_parts.join("<br>")
+                });
+            }
+
+            wires = next_wires;
+            nodes = next_nodes;
+            t++;
+
+            // Safety break
+            if(t > 15) break;
+        }
+
+        states.push({
+            cycle: t,
+            nodes: JSON.parse(JSON.stringify(nodes)),
+            wires: Array.from({length: N + 1}, () => []),
+            desc: "<strong>החישוב הושלם!</strong> כל המשוואות נפתרו באמצעות הצנרת."
+        });
+    }
+
+    // --- Visualization Logic ---
+    let stepIndex = 0;
+    let playTimeout = null;
+    let isPlaying = false;
+    const speedMap = { 1: 3000, 2: 2200, 3: 1500, 4: 900, 5: 400 };
+
+    const svgWidth = 1000;
+    const svgHeight = 250;
+
+    const rectWidth = 160;
+    const rectHeight = 100;
+    const startX = 60;
+    const spacing = 230;
+    const nodeY = 80;
+
+    const svg = d3.select("#visualizer")
+        .append("svg")
+        .attr("width", svgWidth)
+        .attr("height", svgHeight);
+
+    // Arrowhead
+    svg.append("defs").append("marker")
+        .attr("id", "arrowhead")
+        .attr("viewBox", "-0 -5 10 10")
+        .attr("refX", 8)
+        .attr("refY", 0)
+        .attr("orient", "auto")
+        .attr("markerWidth", 6)
+        .attr("markerHeight", 6)
+        .append("svg:path")
+        .attr("d", "M 0,-5 L 10 ,0 L 0,5")
+        .attr("fill", "#bdc3c7");
+
+    // Draw static skeleton
+    for(let i=0; i<N; i++) {
+        let x = startX + i * spacing;
+
+        // Arrow pointing TO this node (except P0 which has no input)
+        if (i > 0) {
+            svg.append("line")
+                .attr("class", "arrow-line")
+                .attr("x1", x - spacing + rectWidth)
+                .attr("y1", nodeY + rectHeight/2)
+                .attr("x2", x - 5)
+                .attr("y2", nodeY + rectHeight/2);
+        }
+
+        // Arrow OUT of last node
+        if (i === N - 1) {
+            svg.append("line")
+                .attr("class", "arrow-line")
+                .attr("x1", x + rectWidth)
+                .attr("y1", nodeY + rectHeight/2)
+                .attr("x2", x + rectWidth + 50)
+                .attr("y2", nodeY + rectHeight/2);
+        }
+    }
+
+    const nodesGroup = svg.append("g");
+    const wiresGroup = svg.append("g");
+
+    function renderState(state) {
+
+        // Render Nodes
+        let procSelection = nodesGroup.selectAll("g.proc").data(state.nodes);
+
+        let procEnter = procSelection.enter()
+            .append("g")
+            .attr("class", "proc")
+            .attr("transform", (d, i) => `translate(${startX + i * spacing}, ${nodeY})`);
+
+        procEnter.append("rect")
+            .attr("class", "proc-rect")
+            .attr("width", rectWidth)
+            .attr("height", rectHeight);
+
+        procEnter.append("text")
+            .attr("class", "proc-label")
+            .attr("x", rectWidth/2)
+            .attr("y", 25)
+            .attr("text-anchor", "middle")
+            .text((d,i) => `P${i}`);
+
+        procEnter.append("text")
+            .attr("class", "proc-eq")
+            .attr("x", rectWidth/2)
+            .attr("y", 50)
+            .attr("text-anchor", "middle")
+            .text((d,i) => equations[i].label);
+
+        procEnter.append("text")
+            .attr("class", "proc-solved")
+            .attr("x", rectWidth/2)
+            .attr("y", 80)
+            .attr("text-anchor", "middle");
+
+        let procMerge = procSelection.merge(procEnter);
+
+        procMerge.select(".proc-solved")
+            .text(d => d.computed ? `x${d.myResult.id} = ${d.myResult.val}` : "ממתין להצבות...");
+
+        // Render Wires (Moving values)
+        // Flatten wire arrays for rendering
+        let wireData = [];
+        state.wires.forEach((wireQueue, wireIdx) => {
+            wireQueue.forEach((valObj, queuePos) => {
+                wireData.push({
+                    wireIdx: wireIdx,
+                    queuePos: queuePos, // to offset multiple items on same wire
+                    id: valObj.id,
+                    val: valObj.val
+                });
+            });
+        });
+
+        // Unique key based on value ID and wire location to animate properly
+        let wireSelection = wiresGroup.selectAll("g.wire-val").data(wireData, d => `var${d.id}-wire${d.wireIdx}`);
+
+        wireSelection.exit().remove();
+
+        let wireEnter = wireSelection.enter()
+            .append("g")
+            .attr("class", "wire-val")
+            .attr("transform", d => {
+                let xBase = (d.wireIdx === 0) ? 0 : (startX + (d.wireIdx-1)*spacing + rectWidth + 20);
+                // Offset if multiple items on the wire
+                let x = xBase + (d.queuePos * 30);
+                return `translate(${x}, ${nodeY + rectHeight/2})`;
+            });
+
+        wireEnter.append("circle")
+            .attr("class", "wire-val-circle")
+            .attr("r", 0)
+            .transition().duration(200)
+            .attr("r", 16);
+
+        wireEnter.append("text")
+            .attr("class", "wire-val-text")
+            .attr("text-anchor", "middle")
+            .attr("dy", ".35em");
+
+        let wireMerge = wireSelection.merge(wireEnter);
+        wireMerge.select("text").text(d => `x${d.id}`);
+
+        // Update Text Status
+        document.getElementById("status").innerHTML = state.desc;
+
+        // Buttons
+        document.getElementById("prev-btn").disabled = (stepIndex === 0);
+        document.getElementById("next-btn").disabled = (stepIndex === states.length - 1);
+
+        if (stepIndex === states.length - 1 && isPlaying) {
+            pause();
+        }
+    }
+
+    // --- Controls ---
+    function init() {
+        generateStates();
+        pause();
+        goToStep(0);
+    }
+
+    function goToStep(index) {
+        if(index < 0) index = 0;
+        if(index >= states.length) index = states.length - 1;
+        stepIndex = index;
+        renderState(states[stepIndex]);
+    }
+
+    function togglePlay() {
+        if (isPlaying) pause();
+        else play();
+    }
+
+    function play() {
+        if (stepIndex >= states.length - 1) goToStep(0);
+        isPlaying = true;
+        let btn = document.getElementById("play-btn");
+        btn.innerText = "השהה (Pause)";
+        btn.classList.add("playing");
+        executePlayLoop();
+    }
+
+    function executePlayLoop() {
+        if (!isPlaying) return;
+        if (stepIndex < states.length - 1) {
+            goToStep(stepIndex + 1);
+            let intervalTime = speedMap[document.getElementById("speed-slider").value];
+            playTimeout = setTimeout(executePlayLoop, intervalTime);
+        } else {
+            pause();
+        }
+    }
+
+    function pause() {
+        isPlaying = false;
+        clearTimeout(playTimeout);
+        let btn = document.getElementById("play-btn");
+        btn.innerText = "הרצה (Play)";
+        btn.classList.remove("playing");
+    }
+
+    document.getElementById("reset-btn").addEventListener("click", init);
+    document.getElementById("next-btn").addEventListener("click", () => { pause(); goToStep(stepIndex + 1); });
+    document.getElementById("prev-btn").addEventListener("click", () => { pause(); goToStep(stepIndex - 1); });
+    document.getElementById("play-btn").addEventListener("click", togglePlay);
+
+    document.getElementById("speed-slider").addEventListener("input", () => {
+        if (isPlaying) {
+            clearTimeout(playTimeout);
+            executePlayLoop();
+        }
+    });
+
+    init();
+</script>
+
+</body>
+</html>
