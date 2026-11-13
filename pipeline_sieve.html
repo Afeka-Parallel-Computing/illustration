@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pipeline Sieve of Eratosthenes</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f7f6;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            color: #333;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 1100px;
+            text-align: center;
+        }
+        h1 { color: #2c3e50; margin-bottom: 5px; }
+        .subtitle { color: #7f8c8d; margin-bottom: 25px; font-size: 14px; }
+
+        .controls {
+            margin-bottom: 15px;
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .speed-control {
+            margin-bottom: 25px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            background: #f0f3f4;
+            padding: 10px 20px;
+            border-radius: 8px;
+        }
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            background-color: #3498db;
+            color: white;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 15px;
+            transition: background 0.3s;
+            min-width: 110px;
+        }
+        button:hover { background-color: #2980b9; }
+        button:disabled { background-color: #bdc3c7; cursor: not-allowed; }
+
+        #play-btn { background-color: #2ecc71; }
+        #play-btn:hover { background-color: #27ae60; }
+        #play-btn.playing { background-color: #e74c3c; }
+        #play-btn.playing:hover { background-color: #c0392b; }
+
+        input[type="range"] { width: 150px; cursor: pointer; }
+
+        #visualizer {
+            height: 300px;
+            width: 100%;
+            margin-top: 10px;
+            overflow-x: auto;
+            background: #fff;
+            border: 1px solid #ecf0f1;
+            border-radius: 8px;
+            position: relative;
+        }
+
+        .status-msg {
+            margin-top: 15px;
+            font-size: 1.05em;
+            min-height: 5em;
+            color: #555;
+            background: #f9f9f9;
+            padding: 15px;
+            border-right: 4px solid #8e44ad;
+            text-align: right;
+            border-radius: 4px;
+            line-height: 1.6;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+
+        /* SVG Styles */
+        .proc-rect {
+            fill: #f4ecf7;
+            stroke: #8e44ad;
+            stroke-width: 3px;
+            transition: fill 0.3s, stroke 0.3s;
+            rx: 10px;
+            ry: 10px;
+        }
+        .proc-rect.filled {
+            fill: #d2b4de;
+            stroke: #6c3483;
+        }
+        .proc-text {
+            font-weight: bold;
+            font-size: 18px;
+            fill: #2c3e50;
+            pointer-events: none;
+        }
+        .proc-label {
+            font-size: 15px;
+            fill: #7f8c8d;
+            font-weight: bold;
+        }
+        .arrow-line {
+            stroke: #bdc3c7;
+            stroke-width: 2px;
+            marker-end: url(#arrowhead);
+        }
+        .wire-val-circle {
+            fill: #eaeded;
+            stroke: #34495e;
+            stroke-width: 2px;
+        }
+        .wire-val-text {
+            font-weight: bold;
+            font-size: 15px;
+            fill: #2c3e50;
+            pointer-events: none;
+        }
+        .queue-text {
+            font-size: 16px;
+            font-weight: bold;
+            fill: #2c3e50;
+        }
+        .queue-label {
+            font-size: 15px;
+            fill: #7f8c8d;
+            font-weight: bold;
+        }
+        .dropped-text { color: #e74c3c; font-weight: bold; }
+        .kept-text { color: #27ae60; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>נפת ארטוסתנס בצנרת (Pipeline Prime Generation)</h1>
+    <div class="subtitle">הפקת מספרים ראשוניים מ-2 עד 20. לכל תהליך יש מערך בקיבולת של 2 מספרים ראשוניים לסינון.</div>
+
+    <div class="controls">
+        <button id="reset-btn">איפוס מלא</button>
+        <button id="prev-btn" disabled>צעד אחורה</button>
+        <button id="next-btn">צעד הבא</button>
+        <button id="play-btn">הרצה (Play)</button>
+    </div>
+
+    <div class="speed-control">
+        <label for="speed-slider"><strong>מהירות:</strong> לאט</label>
+        <input type="range" id="speed-slider" min="1" max="5" value="3" dir="ltr">
+        <label for="speed-slider">מהר</label>
+    </div>
+
+    <div id="visualizer"></div>
+    <div id="status" class="status-msg">טוען...</div>
+</div>
+
+<script>
+    // --- Simulation Logic ---
+    const N = 4;
+    const CAPACITY = 2;
+    // Generate numbers 2 to 20
+    const initialQueue = Array.from({length: 19}, (_, i) => i + 2);
+    let states = [];
+
+    function generateStates() {
+        states = [];
+        let queue = [...initialQueue];
+        let wires = new Array(N + 1).fill(null);
+        let nodes = Array.from({length: N}, () => []);
+
+        states.push({
+            cycle: 0,
+            queue: [...queue],
+            wires: [...wires],
+            nodes: nodes.map(arr => [...arr]),
+            desc: "מצב התחלתי. הקלט מכיל את המספרים מ-2 עד 20. התהליכים ריקים."
+        });
+
+        let t = 1;
+        while(queue.length > 0 || wires.some(w => w !== null)) {
+            let next_wires = new Array(N + 1).fill(null);
+            let next_nodes = nodes.map(arr => [...arr]);
+            let desc_parts = [];
+
+            // Process existing wires (in-transit numbers)
+            for(let i = 0; i < N; i++) {
+                if(wires[i] !== null) {
+                    let val = wires[i];
+                    let arr = next_nodes[i];
+
+                    // Check if 'val' is divisible by any prime already in this node
+                    let divisor = arr.find(p => val % p === 0);
+
+                    if (divisor !== undefined) {
+                        // Divisible -> Filtered out (dropped)
+                        desc_parts.push(`P${i}: המספר ${val} <span class="dropped-text">מתחלק ב-${divisor} ולכן מסונן ונמחק</span>.`);
+                    } else {
+                        // Not divisible by primes in this node
+                        if (arr.length < CAPACITY) {
+                            arr.push(val); // Keep as new prime
+                            desc_parts.push(`P${i}: המספר ${val} לא התחלק, ויש מקום. <span class="kept-text">נשמר כראשוני חדש</span>.`);
+                        } else {
+                            next_wires[i+1] = val; // Pass to next node
+                            desc_parts.push(`P${i}: המספר ${val} לא התחלק, אך המערך מלא. מועבר לבדיקה ב-P${i+1}.`);
+                        }
+                    }
+                }
+            }
+
+            // Pull next item from the queue
+            if(queue.length > 0) {
+                let val = queue.shift();
+                next_wires[0] = val;
+                desc_parts.push(`המספר ${val} נמשך מהקלט אל צינור הכניסה של P0.`);
+            }
+
+            states.push({
+                cycle: t,
+                queue: [...queue],
+                wires: [...next_wires],
+                nodes: next_nodes.map(arr => [...arr]),
+                desc: `<strong>מחזור ${t}:</strong><br>` + desc_parts.join("<br>")
+            });
+
+            wires = next_wires;
+            nodes = next_nodes;
+            t++;
+        }
+
+        states.push({
+            cycle: t,
+            queue: [],
+            wires: new Array(N + 1).fill(null),
+            nodes: nodes.map(arr => [...arr]),
+            desc: "<strong>תהליך הסינון הושלם!</strong> כל המספרים הלא-ראשוניים סוננו החוצה. התהליכים מחזיקים כעת את כל המספרים הראשוניים בתחום 2-20."
+        });
+    }
+
+    // --- Visualization Logic ---
+    let stepIndex = 0;
+    let playTimeout = null;
+    let isPlaying = false;
+    const speedMap = { 1: 3000, 2: 2200, 3: 1500, 4: 900, 5: 400 };
+
+    const svgWidth = 1000;
+    const svgHeight = 300;
+
+    // Node dimensions
+    const rectWidth = 110;
+    const rectHeight = 50;
+    const startX = 160;
+    const spacing = 200;
+    const nodeY = 150;
+
+    const svg = d3.select("#visualizer")
+        .append("svg")
+        .attr("width", svgWidth)
+        .attr("height", svgHeight);
+
+    // Arrowhead marker
+    svg.append("defs").append("marker")
+        .attr("id", "arrowhead")
+        .attr("viewBox", "-0 -5 10 10")
+        .attr("refX", 8)
+        .attr("refY", 0)
+        .attr("orient", "auto")
+        .attr("markerWidth", 6)
+        .attr("markerHeight", 6)
+        .append("svg:path")
+        .attr("d", "M 0,-5 L 10 ,0 L 0,5")
+        .attr("fill", "#bdc3c7");
+
+    // Draw static skeleton
+    for(let i=0; i<N; i++) {
+        let x = startX + i * spacing;
+
+        // Arrow pointing TO this node
+        let lineStartX = (i === 0) ? 60 : (startX + (i-1) * spacing + rectWidth);
+        svg.append("line")
+            .attr("class", "arrow-line")
+            .attr("x1", lineStartX)
+            .attr("y1", nodeY + rectHeight/2)
+            .attr("x2", x - 5)
+            .attr("y2", nodeY + rectHeight/2);
+
+        // Process Label
+        svg.append("text")
+            .attr("class", "proc-label")
+            .attr("x", x + rectWidth/2)
+            .attr("y", nodeY - 10)
+            .attr("text-anchor", "middle")
+            .text(`P${i}`);
+    }
+
+    // Dynamic SVG Groups
+    const queueGroup = svg.append("g");
+    const nodesGroup = svg.append("g");
+    const wiresGroup = svg.append("g");
+
+    function renderState(state) {
+        // Render Queue at the Top Center
+        queueGroup.selectAll("*").remove();
+        queueGroup.append("text")
+            .attr("class", "queue-label")
+            .attr("x", svgWidth / 2)
+            .attr("y", 40)
+            .attr("text-anchor", "middle")
+            .text("זרם מספרים לבדיקה:");
+
+        let qText = state.queue.length > 0 ? "\u200E[" + state.queue.join(", ") + "]" : "אין מספרים ממתינים";
+        queueGroup.append("text")
+            .attr("class", "queue-text")
+            .attr("x", svgWidth / 2)
+            .attr("y", 70)
+            .attr("text-anchor", "middle")
+            .text(qText);
+
+        // Render Nodes (Arrays)
+        let procSelection = nodesGroup.selectAll("g.proc").data(state.nodes);
+
+        let procEnter = procSelection.enter()
+            .append("g")
+            .attr("class", "proc")
+            .attr("transform", (d, i) => `translate(${startX + i * spacing}, ${nodeY})`);
+
+        procEnter.append("rect")
+            .attr("class", "proc-rect")
+            .attr("width", rectWidth)
+            .attr("height", rectHeight);
+
+        procEnter.append("text")
+            .attr("class", "proc-text")
+            .attr("x", rectWidth/2)
+            .attr("y", rectHeight/2)
+            .attr("text-anchor", "middle")
+            .attr("dy", ".35em");
+
+        let procMerge = procSelection.merge(procEnter);
+
+        procMerge.select("rect")
+            .attr("class", d => d.length > 0 ? "proc-rect filled" : "proc-rect");
+
+        procMerge.select("text")
+            .text(d => d.length > 0 ? `\u200E[${d.join(", ")}]` : "[]");
+
+        // Render Wires (Moving values)
+        let wireData = state.wires.map((val, idx) => ({val: val, idx: idx})).filter(d => d.val !== null);
+        let wireSelection = wiresGroup.selectAll("g.wire-val").data(wireData, d => d.idx);
+
+        wireSelection.exit().remove();
+
+        let wireEnter = wireSelection.enter()
+            .append("g")
+            .attr("class", "wire-val")
+            .attr("transform", d => {
+                let x = (d.idx === 0) ? (startX - 60) : (startX + (d.idx-1)*spacing + rectWidth + 30);
+                return `translate(${x}, ${nodeY + rectHeight/2})`;
+            });
+
+        wireEnter.append("circle")
+            .attr("class", "wire-val-circle")
+            .attr("r", 0)
+            .transition().duration(200)
+            .attr("r", 15);
+
+        wireEnter.append("text")
+            .attr("class", "wire-val-text")
+            .attr("text-anchor", "middle")
+            .attr("dy", ".35em");
+
+        let wireMerge = wireSelection.merge(wireEnter);
+        wireMerge.select("text").text(d => d.val);
+
+        // Update Text Status
+        document.getElementById("status").innerHTML = state.desc;
+
+        // Buttons
+        document.getElementById("prev-btn").disabled = (stepIndex === 0);
+        document.getElementById("next-btn").disabled = (stepIndex === states.length - 1);
+
+        if (stepIndex === states.length - 1 && isPlaying) {
+            pause();
+        }
+    }
+
+    // --- Controls ---
+    function init() {
+        generateStates();
+        pause();
+        goToStep(0);
+    }
+
+    function goToStep(index) {
+        if(index < 0) index = 0;
+        if(index >= states.length) index = states.length - 1;
+        stepIndex = index;
+        renderState(states[stepIndex]);
+    }
+
+    function togglePlay() {
+        if (isPlaying) pause();
+        else play();
+    }
+
+    function play() {
+        if (stepIndex >= states.length - 1) goToStep(0);
+        isPlaying = true;
+        let btn = document.getElementById("play-btn");
+        btn.innerText = "השהה (Pause)";
+        btn.classList.add("playing");
+        executePlayLoop();
+    }
+
+    function executePlayLoop() {
+        if (!isPlaying) return;
+        if (stepIndex < states.length - 1) {
+            goToStep(stepIndex + 1);
+            let intervalTime = speedMap[document.getElementById("speed-slider").value];
+            playTimeout = setTimeout(executePlayLoop, intervalTime);
+        } else {
+            pause();
+        }
+    }
+
+    function pause() {
+        isPlaying = false;
+        clearTimeout(playTimeout);
+        let btn = document.getElementById("play-btn");
+        btn.innerText = "הרצה (Play)";
+        btn.classList.remove("playing");
+    }
+
+    document.getElementById("reset-btn").addEventListener("click", init);
+    document.getElementById("next-btn").addEventListener("click", () => { pause(); goToStep(stepIndex + 1); });
+    document.getElementById("prev-btn").addEventListener("click", () => { pause(); goToStep(stepIndex - 1); });
+    document.getElementById("play-btn").addEventListener("click", togglePlay);
+
+    document.getElementById("speed-slider").addEventListener("input", () => {
+        if (isPlaying) {
+            clearTimeout(playTimeout);
+            executePlayLoop();
+        }
+    });
+
+    init();
+</script>
+
+</body>
+</html>
