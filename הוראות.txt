@@ -1,0 +1,3 @@
+בניית קישור לקבצי ה-html
+
+https://afeka-parallel-computing.github.io/illustration/pipeline_equations.html
