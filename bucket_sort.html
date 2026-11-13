@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>מיון דליים מקבילי – שתי גרסאות</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #F4F7FB; --surface: #FFFFFF; --card: #EEF3F9; --ink: #0B1F3A; --text: #1A2433;
+    --muted: #5B6B7F; --line: #C9D3DF; --orange: #E8692C; --orange-soft: #FDEBDF;
+    --blue: #1F5C99; --blue-soft: #E3EDF8; --teal: #2A9D8F; --teal-soft: #DDF1EE;
+    --grey-soft: #F1F4F8; --code-bg: #0B1F3A; --code-text: #E6EDF5; --code-hl: #23436B;
+    --b0: #E8692C; --b1: #1F5C99; --b2: #2A9D8F; --b3: #B7841A;
+    --on-accent: #FFFFFF; --shadow: 0 2px 10px rgba(11, 31, 58, 0.08);
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #08162A; --surface: #0F223D; --card: #16304F; --ink: #E6EDF5; --text: #E6EDF5;
+      --muted: #9AAAC0; --line: #2C4668; --orange: #F28F5C; --orange-soft: #3A2A22;
+      --blue: #7FB8F0; --blue-soft: #1A3556; --teal: #4CC3B4; --teal-soft: #163B3A;
+      --grey-soft: #132A47; --code-bg: #061020; --code-text: #E6EDF5; --code-hl: #23436B;
+      --b0: #F28F5C; --b1: #7FB8F0; --b2: #4CC3B4; --b3: #F2B134;
+      --on-accent: #08162A; --shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+      color-scheme: dark;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  :root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+  body { background: var(--bg); color: var(--text); font-family: "Assistant", "Segoe UI", Arial, sans-serif; font-size: 17px; line-height: 1.55; }
+  .page { max-width: 1200px; margin: 0 auto; padding: 26px 20px 40px; }
+  h1 { margin: 0; font-size: clamp(26px, 3.2vw, 36px); font-weight: 800; color: var(--ink); line-height: 1.2; }
+  .lead { margin: 6px 0 0; color: var(--muted); font-size: 18px; max-width: 75ch; }
+  .m { font-family: "JetBrains Mono", Consolas, "Courier New", monospace; direction: ltr; unicode-bidi: isolate; white-space: nowrap; }
+  .panel { background: var(--surface); border-radius: 12px; box-shadow: var(--shadow); padding: 16px 20px; }
+  .panel h2 { margin: 0 0 10px; font-size: 19px; color: var(--ink); }
+
+  .bar { margin-top: 20px; display: grid; grid-template-columns: auto 1fr; gap: 14px 24px; align-items: center; }
+  .bar .lbl { color: var(--muted); font-weight: 700; font-size: 15px; }
+  .seg { display: inline-flex; background: var(--card); border-radius: 10px; padding: 4px; gap: 4px; flex-wrap: wrap; }
+  .seg button { background: transparent; color: var(--ink); }
+  .seg button[aria-pressed="true"] { background: var(--ink); color: var(--surface); }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  button { font: inherit; font-weight: 700; font-size: 16px; border: none; border-radius: 8px; padding: 8px 15px; cursor: pointer; background: var(--card); color: var(--ink); }
+  button.play { background: var(--orange); color: var(--on-accent); min-width: 96px; }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+  button:focus-visible, input:focus-visible { outline: 3px solid var(--orange); outline-offset: 2px; }
+  .speed { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 15px; }
+  .speed input { width: 110px; accent-color: var(--orange); }
+  .stepinfo { margin-inline-start: auto; display: flex; align-items: baseline; gap: 10px; }
+  .stepnum { font-size: 34px; font-weight: 800; color: var(--orange); line-height: 1; }
+  .phase { font-weight: 800; color: var(--ink); font-size: 19px; }
+
+  .phases { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 14px; }
+  .phases span { font-size: 14px; padding: 4px 10px; border-radius: 20px; background: var(--card); color: var(--muted); font-weight: 600; }
+  .phases span.done { background: var(--teal-soft); color: var(--teal); }
+  .phases span.now { background: var(--orange); color: var(--on-accent); }
+
+  .stage { margin-top: 16px; padding: 10px; }
+  .stage svg { width: 100%; height: auto; display: block; direction: ltr; }
+  svg .he { direction: rtl; unicode-bidi: embed; font-family: "Assistant", Arial, sans-serif; }
+  svg .col { fill: var(--grey-soft); stroke: var(--line); stroke-width: 1.5; }
+  svg .colhead { font: 800 19px "Assistant", Arial, sans-serif; fill: var(--ink); }
+  svg .range { font: 700 14px "JetBrains Mono", Consolas, monospace; }
+  svg .zone { font-size: 13px; fill: var(--muted); font-weight: 600; }
+  svg .section { font-size: 15px; fill: var(--muted); font-weight: 700; }
+  svg .bucket { fill: var(--surface); stroke: var(--ink); stroke-width: 3; stroke-linejoin: round; opacity: 0.85; }
+  svg .slot { fill: none; stroke: var(--line); stroke-width: 1.5; stroke-dasharray: 5 4; }
+  svg .slotlbl { font: 700 12px "JetBrains Mono", Consolas, monospace; }
+  svg .cnt { font: 700 14px "JetBrains Mono", Consolas, monospace; fill: var(--ink); }
+  svg .cnt.warn { fill: var(--orange); }
+  svg .chip { transition: transform var(--dur, 600ms) ease, opacity var(--dur, 600ms) ease; }
+  svg .chip rect { rx: 8; fill: var(--card); stroke: var(--line); stroke-width: 1.5; }
+  svg .chip text { font: 700 15px "JetBrains Mono", Consolas, monospace; fill: var(--ink); text-anchor: middle; dominant-baseline: central; }
+  svg .chip.big text { font-size: 17px; }
+  svg .chip.c0 rect { fill: var(--b0); stroke: var(--b0); } svg .chip.c1 rect { fill: var(--b1); stroke: var(--b1); }
+  svg .chip.c2 rect { fill: var(--b2); stroke: var(--b2); } svg .chip.c3 rect { fill: var(--b3); stroke: var(--b3); }
+  svg .chip.c0 text, svg .chip.c1 text, svg .chip.c2 text, svg .chip.c3 text { fill: var(--on-accent); }
+  svg .chip.dim { opacity: 0.22; }
+  svg .chip.local rect { stroke: var(--ink); stroke-width: 3; stroke-dasharray: 4 3; }
+  svg.noanim .chip { transition: none; }
+
+  .grid2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; margin-top: 18px; }
+  .story p { margin: 0 0 8px; }
+  .why { margin-top: 10px; padding: 10px 14px; border-radius: 10px; background: var(--orange-soft); font-weight: 600; }
+  .why:empty { display: none; }
+  pre.code { margin: 0; background: var(--code-bg); color: var(--code-text); border-radius: 10px; padding: 12px 0; overflow-x: auto; direction: ltr; text-align: left; font: 500 13.5px/1.7 "JetBrains Mono", Consolas, monospace; }
+  pre.code div { padding: 0 14px; white-space: pre; }
+  pre.code div.hl { background: var(--code-hl); box-shadow: inset 4px 0 0 var(--orange); }
+  pre.code .c { color: #8FA9C7; font-style: italic; }
+  pre.code .f { color: #F2B134; }
+
+  .stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+  .stat { background: var(--card); border-radius: 10px; padding: 10px 12px; }
+  .stat b { display: block; font-size: 26px; color: var(--ink); line-height: 1.2; font-family: "JetBrains Mono", Consolas, monospace; }
+  .stat span { color: var(--muted); font-size: 14px; }
+  table { border-collapse: collapse; width: 100%; }
+  table.cmp th, table.cmp td { padding: 7px 10px; border-bottom: 1px solid var(--line); text-align: center; }
+  table.cmp th:first-child, table.cmp td:first-child { text-align: right; }
+  table.cmp th.on, table.cmp td.on { background: var(--orange-soft); font-weight: 700; }
+  table.mx { direction: ltr; width: auto; margin-top: 6px; }
+  table.mx td, table.mx th { width: 46px; height: 38px; text-align: center; font-family: "JetBrains Mono", Consolas, monospace; font-weight: 700; border: 1px solid var(--line); }
+  table.mx th { color: var(--muted); font-size: 14px; background: var(--grey-soft); }
+  table.mx td.diag { background: var(--grey-soft); color: var(--muted); }
+  table.mx td.zero { color: var(--line); }
+  .note { color: var(--muted); font-size: 14px; margin-top: 8px; }
+  .hidden { display: none; }
+  @media (max-width: 900px) {
+    .grid2 { grid-template-columns: 1fr; }
+    .bar { grid-template-columns: 1fr; }
+    .stats { grid-template-columns: 1fr 1fr; }
+    .stepinfo { margin-inline-start: 0; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>מיון דליים מקבילי</h1>
+  <p class="lead">כל תהליך אחראי על טווח ערכים אחד. בוחרים גרסה, עוברים שלב אחרי שלב, ורואים כמה נתונים כל תהליך מקבל וכמה מהם הוא באמת צריך.</p>
+
+  <div class="panel bar">
+    <span class="lbl">גרסה</span>
+    <div class="seg" id="verSeg">
+      <button data-v="A" aria-pressed="true">גרסה א: דלי לכל תהליך (Bcast)</button>
+      <button data-v="B" aria-pressed="false">גרסה ב: דליים קטנים ו-Alltoall</button>
+    </div>
+    <span class="lbl">נתונים</span>
+    <div class="seg" id="dataSeg">
+      <button data-d="deck" aria-pressed="true">מהמצגת</button>
+      <button data-d="uniform" aria-pressed="false">אקראיים אחידים</button>
+      <button data-d="skew" aria-pressed="false">מרוכזים בטווח אחד</button>
+    </div>
+    <span class="lbl">צעדים</span>
+    <div class="row">
+      <button id="reset">להתחלה</button>
+      <button id="prev">צעד אחורה</button>
+      <button id="next">צעד הבא</button>
+      <button id="play" class="play">הרצה</button>
+      <label class="speed">לאט <input type="range" id="speed" min="1" max="5" value="3" aria-label="מהירות"> מהר</label>
+      <div class="stepinfo"><span class="stepnum" id="stepNum">0</span><span class="phase" id="phaseName"></span></div>
+    </div>
+  </div>
+  <div class="phases" id="phases"></div>
+
+  <div class="panel stage"><svg id="svg" viewBox="0 0 1160 600" role="img" aria-label="מיון דליים עם ארבעה תהליכים"></svg></div>
+
+  <div class="grid2">
+    <div class="panel story">
+      <h2 id="storyTitle"></h2>
+      <div id="story"></div>
+      <div class="why" id="why"></div>
+    </div>
+    <div class="panel">
+      <h2>הקוד שרץ בכל תהליך</h2>
+      <pre class="code" id="code"></pre>
+      <div class="note" id="codeNote"></div>
+    </div>
+  </div>
+
+  <div class="grid2">
+    <div class="panel">
+      <h2>מה עבר ברשת עד עכשיו</h2>
+      <div class="stats" id="stats"></div>
+      <div id="mxWrap" class="hidden">
+        <h2 style="margin-top:16px">מטריצת counts של Alltoall</h2>
+        <div class="note" style="margin-top:0">שורה = שולח, עמודה = מקבל. האלכסון נשאר אצל התהליך ולא עובר ברשת.</div>
+        <table class="mx" id="mx"></table>
+      </div>
+    </div>
+    <div class="panel">
+      <h2>השוואה בין הגרסאות – לנתונים הנוכחיים</h2>
+      <table class="cmp" id="cmp"></table>
+      <div class="note">n = 12 מספרים, p = 4 תהליכים. בגרסה ב כל תהליך מקבל בדיוק n/p, ולכן n חייב להתחלק ב-p (אחרת משתמשים ב-MPI_Scatterv).</div>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const P = 4, N = 12, RANGE = 100;
+  const DECK = [78, 12, 45, 9, 63, 27, 54, 1, 36, 82, 5, 99];
+  const lo = (r) => Math.floor(r * RANGE / P), hi = (r) => Math.floor((r + 1) * RANGE / P);
+  const dest = (v) => Math.floor(v * P / RANGE);
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const mm = (s) => `<span class="m">${s}</span>`;
+
+  let version = "A", data = DECK.slice(), states = [], step = 0, playing = false, timer = null;
+  const speedMs = { 1: 3000, 2: 2200, 3: 1500, 4: 1000, 5: 600 };
+
+  // ---------- geometry ----------
+  const CW = 268, CG = 18, CX0 = 22;
+  const colX = (c) => CX0 + c * (CW + CG);
+  const BIG = 44, SM = 32;
+  const rowPos = (i, y) => ({ x: 580 - (N * 50) / 2 + 25 + i * 50, y });
+  const rootPos = (i) => rowPos(i, 52);
+  const finalPos = (i) => rowPos(i, 556);
+  const memPos = (c, k) => ({ x: colX(c) + 34 + (k % 6) * 40, y: 186 + Math.floor(k / 6) * 38 });
+  const slotPos = (c, j, m) => ({ x: colX(c) + 10 + j * 64 + 30, y: 256 + m * 36 });
+  const bucketPos = (c, k) => ({ x: colX(c) + 34 + (k % 6) * 40, y: 384 + Math.floor(k / 6) * 40 });
+
+  // ---------- state generation ----------
+  function chip(key, val, pos, cls, size, from) { return { key, val, x: pos.x, y: pos.y, cls: cls || "", size: size || SM, from }; }
+  const rootChips = (cls) => data.map((v, i) => chip("r" + i, v, rootPos(i), cls, BIG));
+
+  function buildA() {
+    const S = [];
+    const net = { data: 0, ints: 0, msgs: 0 };
+    const recvd = Array(P).fill(0), scanned = Array(P).fill(0);
+    const push = (o) => S.push(Object.assign({ net: { ...net }, recvd: [...recvd], scanned: [...scanned] }, o));
+    push({ phase: 0, chips: rootChips(), counts: null });
+    // 1. Bcast
+    const copies = (styleFn) => {
+      const out = [];
+      for (let c = 0; c < P; c++) data.forEach((v, i) => out.push(chip(`a${c}_${i}`, v, memPos(c, i), styleFn(c, v), SM, rootPos(i))));
+      return out;
+    };
+    net.data += (P - 1) * N; net.msgs += P - 1;
+    for (let c = 0; c < P; c++) recvd[c] = N;
+    push({ phase: 1, chips: [...rootChips(), ...copies(() => "")] });
+    // 2. scan
+    for (let c = 0; c < P; c++) scanned[c] = N;
+    push({ phase: 2, chips: [...rootChips(), ...copies((c, v) => (dest(v) === c ? "c" + c : "dim"))] });
+    // 3. into bucket
+    const buckets = Array.from({ length: P }, () => []);
+    data.forEach((v, i) => buckets[dest(v)].push({ v, i }));
+    const bucketChips = (b) => {
+      const out = [];
+      b.forEach((list, c) => list.forEach((o, k) => out.push(chip(`a${c}_${o.i}`, o.v, bucketPos(c, k), "c" + c))));
+      return out;
+    };
+    push({ phase: 3, chips: [...rootChips(), ...bucketChips(buckets)] });
+    // 4. sort
+    buckets.forEach((b) => b.sort((a, b2) => a.v - b2.v));
+    push({ phase: 4, chips: [...rootChips(), ...bucketChips(buckets)] });
+    // 5. gather counts
+    const counts = buckets.map((b) => b.length);
+    const displs = counts.map((_, r) => counts.slice(0, r).reduce((a, b) => a + b, 0));
+    net.ints += P - 1; net.msgs += P - 1;
+    push({ phase: 5, chips: [...rootChips(), ...bucketChips(buckets)], counts, displs });
+    // 6. gatherv
+    net.data += counts.slice(1).reduce((a, b) => a + b, 0); net.msgs += P - 1;
+    const fin = [];
+    buckets.forEach((list, c) => list.forEach((o, k) => fin.push(chip(`a${c}_${o.i}`, o.v, finalPos(displs[c] + k), "c" + c, BIG))));
+    push({ phase: 6, chips: [...rootChips("dim"), ...fin], counts, displs });
+    push({ phase: 7, chips: [...rootChips("dim"), ...fin], counts, displs, done: true });
+    return S;
+  }
+
+  function buildB() {
+    const S = [];
+    const net = { data: 0, ints: 0, msgs: 0 };
+    const recvd = Array(P).fill(0), scanned = Array(P).fill(0);
+    const push = (o) => S.push(Object.assign({ net: { ...net }, recvd: [...recvd], scanned: [...scanned] }, o));
+    const blk = N / P;
+    push({ phase: 0, chips: rootChips(), counts: null });
+    // 1. Scatter
+    net.data += (P - 1) * blk; net.msgs += P - 1;
+    for (let c = 0; c < P; c++) recvd[c] = blk;
+    const part = Array.from({ length: P }, (_, c) => data.slice(c * blk, c * blk + blk).map((v, k) => ({ v, i: c * blk + k })));
+    const partChips = part.flatMap((list, c) => list.map((o, k) => chip("b" + o.i, o.v, memPos(c, k), "", SM, rootPos(o.i))));
+    push({ phase: 1, chips: [...rootChips("dim"), ...partChips] });
+    // 2. split into small buckets
+    for (let c = 0; c < P; c++) scanned[c] = blk;
+    const small = part.map((list) => { const s = Array.from({ length: P }, () => []); list.forEach((o) => s[dest(o.v)].push(o)); return s; });
+    const smallChips = small.flatMap((s, c) => s.flatMap((list, j) => list.map((o, m) => chip("b" + o.i, o.v, slotPos(c, j, m), "c" + j))));
+    push({ phase: 2, chips: [...rootChips("dim"), ...smallChips] });
+    // 3. Alltoall counts
+    const matrix = small.map((s) => s.map((l) => l.length));
+    net.ints += P * (P - 1); net.msgs += P * (P - 1);
+    push({ phase: 3, chips: [...rootChips("dim"), ...smallChips], matrix });
+    // 4. Alltoallv
+    const buckets = Array.from({ length: P }, () => []);
+    small.forEach((s, c) => s.forEach((list, j) => list.forEach((o) => buckets[j].push({ ...o, from: c }))));
+    let offdiag = 0, msgs = 0;
+    matrix.forEach((row, c) => row.forEach((n, j) => { if (c !== j && n > 0) { offdiag += n; msgs++; } }));
+    net.data += offdiag; net.msgs += msgs;
+    for (let c = 0; c < P; c++) recvd[c] += buckets[c].filter((o) => o.from !== c).length;
+    const bucketChips = () => buckets.flatMap((list, c) => list.map((o, k) => chip("b" + o.i, o.v, bucketPos(c, k), "c" + c + (o.from === c ? " local" : ""))));
+    push({ phase: 4, chips: [...rootChips("dim"), ...bucketChips()], matrix });
+    // 5. sort
+    buckets.forEach((b) => b.sort((a, b2) => a.v - b2.v));
+    for (let c = 0; c < P; c++) scanned[c] += buckets[c].length;
+    push({ phase: 5, chips: [...rootChips("dim"), ...bucketChips()], matrix });
+    // 6. gather counts
+    const counts = buckets.map((b) => b.length);
+    const displs = counts.map((_, r) => counts.slice(0, r).reduce((a, b) => a + b, 0));
+    net.ints += P - 1; net.msgs += P - 1;
+    push({ phase: 6, chips: [...rootChips("dim"), ...bucketChips()], matrix, counts, displs });
+    // 7. gatherv
+    net.data += counts.slice(1).reduce((a, b) => a + b, 0); net.msgs += P - 1;
+    const fin = buckets.flatMap((list, c) => list.map((o, k) => chip("b" + o.i, o.v, finalPos(displs[c] + k), "c" + c, BIG)));
+    push({ phase: 7, chips: [...rootChips("dim"), ...fin], matrix, counts, displs });
+    push({ phase: 8, chips: [...rootChips("dim"), ...fin], matrix, counts, displs, done: true });
+    return S;
+  }
+
+  // ---------- texts ----------
+  const PH = {
+    A: ["התחלה", "MPI_Bcast", "סריקה", "העתקה לדלי", "מיון מקומי", "MPI_Gather", "MPI_Gatherv", "סיום"],
+    B: ["התחלה", "MPI_Scatter", "דליים קטנים", "MPI_Alltoall", "MPI_Alltoallv", "מיון מקומי", "MPI_Gather", "MPI_Gatherv", "סיום"],
+  };
+  const CODE = {
+    A: [
+      ["MPI_Bcast(data, N, MPI_INT, 0, comm);", [1]],
+      ["for (i = 0; i < N; i++)                  /* every process scans all N */", [2, 3]],
+      ["    if (data[i] >= lo && data[i] < hi)", [2]],
+      ["        bucket[count++] = data[i];", [3]],
+      ["insertion_sort(bucket, count);", [4]],
+      ["MPI_Gather(&count, 1, MPI_INT, counts, 1, MPI_INT, 0, comm);", [5]],
+      ["/* root: displs[r] = displs[r-1] + counts[r-1] */", [5]],
+      ["MPI_Gatherv(bucket, count, MPI_INT,", [6]],
+      ["            sorted, counts, displs, MPI_INT, 0, comm);", [6]],
+    ],
+    B: [
+      ["MPI_Scatter(data, N/p, MPI_INT, part, N/p, MPI_INT, 0, comm);", [1]],
+      ["/* count per destination, then place into sbuf (pos = sd) */", [2]],
+      ["for (i = 0; i < N/p; i++) sc[part[i] * p / RANGE]++;", [2]],
+      ["sd[0] = 0;  for (d = 1; d < p; d++) sd[d] = sd[d-1] + sc[d-1];", [2]],
+      ["for (i = 0; i < N/p; i++) sbuf[pos[part[i] * p / RANGE]++] = part[i];", [2]],
+      ["MPI_Alltoall(sc, 1, MPI_INT, rc, 1, MPI_INT, comm);", [3]],
+      ["/* rd[] = prefix sums of rc[],  count = sum of rc[] */", [3]],
+      ["MPI_Alltoallv(sbuf, sc, sd, MPI_INT, bucket, rc, rd, MPI_INT, comm);", [4]],
+      ["insertion_sort(bucket, count);", [5]],
+      ["MPI_Gather(&count, 1, MPI_INT, counts, 1, MPI_INT, 0, comm);", [6]],
+      ["MPI_Gatherv(bucket, count, MPI_INT,", [7]],
+      ["            sorted, counts, displs, MPI_INT, 0, comm);", [7]],
+    ],
+  };
+
+  function imbalanceNote(s) {
+    if (!s.counts) return "";
+    const max = Math.max(...s.counts), r = s.counts.indexOf(max);
+    if (max >= 2 * (N / P)) return ` שימו לב: הדלי של P${r} גדול פי ${(max / (N / P)).toFixed(1)} מהממוצע – P${r} יעבוד הכי הרבה, והשאר יחכו לו.`;
+    return "";
+  }
+
+  function story(s) {
+    const blk = N / P;
+    if (version === "A") switch (s.phase) {
+      case 0: return [`המערך נמצא רק אצל rank 0. כל תהליך אחראי על טווח אחד: P0 על ${mm("[0, 25)")}, P1 על ${mm("[25, 50)")}, P2 על ${mm("[50, 75)")}, P3 על ${mm("[75, 100)")}.`,
+        "חלוקה לטווחים שווים עובדת טוב רק כשהערכים מפוזרים באופן אחיד. נסו גם את הנתונים המרוכזים."];
+      case 1: return [`rank 0 משדר את כל ${N} המספרים לכל התהליכים.`,
+        `כל תהליך מקבל ${N} מספרים, אף שרק כרבע מהם שייכים לו. ‏P0 הוא ה-root ומשתמש במערך שלו, ולכן ברשת עוברים ${(P - 1) * N} מספרים.`];
+      case 2: return ["כל תהליך סורק את כל המערך ומסמן בצבע את המספרים שבטווח שלו. המספרים האפורים שייכים לתהליכים אחרים.",
+        `זו העלות הנסתרת של גרסה א: כל תהליך עובר על כל ${N} המספרים, כלומר עבודה של O(n) לכל תהליך.`];
+      case 3: return ["המספרים שבטווח מועתקים לדלי המקומי. השאר נזרקים – הם כבר נמצאים אצל התהליך שאחראי עליהם.", ""];
+      case 4: return ["כל תהליך ממיין את הדלי שלו במיון הכנסה – במקביל, ובלי שום תקשורת.", imbalanceNote(s) || "הדליים בגודל דומה, ולכן כולם מסיימים בערך באותו זמן."];
+      case 5: return [`הדליים בגדלים שונים, ולכן קודם אוספים ל-rank 0 את count של כל תהליך. rank 0 מחשב את displs כסכום מצטבר: ${mm("displs = [" + s.displs.join(", ") + "]")}.`,
+        "בלי שלב זה rank 0 לא יודע כמה מספרים לצפות מכל תהליך ואיפה לשים אותם."];
+      case 6: return ["MPI_Gatherv כותב כל דלי למערך הסופי, החל מה-displs שלו. מאחר שכל ערך בדלי r קטן מכל ערך בדלי r+1, אין צורך במיזוג.", ""];
+      default: return summary(s);
+    }
+    switch (s.phase) {
+      case 0: return [`המערך נמצא רק אצל rank 0. בגרסה הזו כל תהליך יקבל רק בלוק של ${mm("n/p = " + blk)} מספרים, ואחר כך התהליכים יחליפו ביניהם את המספרים לפי הטווחים.`,
+        "חלוקה לטווחים שווים עובדת טוב רק כשהערכים מפוזרים באופן אחיד. נסו גם את הנתונים המרוכזים."];
+      case 1: return [`rank 0 שולח לכל תהליך בלוק של ${blk} מספרים – בלי קשר לערכים שלהם.`,
+        `כל תהליך מקבל רק ${blk} מספרים במקום ${N}. ברשת עוברים ${(P - 1) * blk} מספרים.`];
+      case 2: return [`כל תהליך מחלק את ${blk} המספרים שלו ל-${P} דליים קטנים – אחד לכל תהליך יעד. הצבע מסמן לאיזה תהליך המספר שייך.`,
+        `כל תהליך עובר רק על ${blk} מספרים.`];
+      case 3: return ["לפני שמחליפים נתונים, כל תהליך צריך לדעת כמה מספרים יקבל מכל תהליך אחר. MPI_Alltoall מחליף את הכמויות – הטבלה למטה.",
+        "זה אותו רעיון כמו MPI_Gather לפני MPI_Gatherv: קודם הכמויות, אחר כך הנתונים."];
+      case 4: return ["MPI_Alltoallv: הדלי הקטן j של כל תהליך נשלח לתהליך j. מספרים עם מסגרת מקווקוות כבר היו אצל הבעלים שלהם – הם לא עברו ברשת.",
+        "אחרי ההחלפה, לכל תהליך יש את כל המספרים בטווח שלו – בדיוק כמו בגרסה א, אבל אף תהליך לא סרק את כל המערך."];
+      case 5: return ["כל תהליך ממיין את הדלי שלו במיון הכנסה – במקביל, ובלי תקשורת.", imbalanceNote(s) || "הדליים בגודל דומה, ולכן כולם מסיימים בערך באותו זמן."];
+      case 6: return [`אוספים ל-rank 0 את גודל הדלי של כל תהליך ומחשבים ${mm("displs = [" + s.displs.join(", ") + "]")}.`, ""];
+      case 7: return ["MPI_Gatherv כותב כל דלי למקום שלו במערך הסופי – בלי מיזוג.", ""];
+      default: return summary(s);
+    }
+  }
+
+  function summary(s) {
+    const n = s.net;
+    const other = (version === "A" ? buildFor("B") : buildFor("A")).slice(-1)[0];
+    const otherName = version === "A" ? "בגרסה ב" : "בגרסה א";
+    return [`המערך ממוין. ברשת עברו ${n.data} מספרים של נתונים ו-${n.ints} מונים. ${otherName}, על אותם נתונים: ${other.net.data} מספרים ו-${other.net.ints} מונים.`,
+      version === "A" ? "גרסה א פשוטה, אבל כל תהליך קיבל וסרק את כל המערך. כש-n גדול זה הופך לצוואר הבקבוק."
+        : "גרסה ב מסובכת יותר (שתי קריאות Alltoall), אבל כל תהליך נגע רק בכ-n/p מספרים. זה העיקרון של Sample Sort ושל שלב ה-Shuffle ב-MapReduce."];
+  }
+
+  function buildFor(v) { const keep = version; version = v; const s = v === "A" ? buildA() : buildB(); version = keep; return s; }
+
+  // ---------- SVG ----------
+  const NS = "http://www.w3.org/2000/svg";
+  const svg = document.getElementById("svg");
+  const el = (tag, attrs, parent, text) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (text !== undefined) e.textContent = text;
+    (parent || svg).appendChild(e);
+    return e;
+  };
+  const staticLayer = el("g", {}), cntLayer = el("g", {}), chipLayer = el("g", {});
+  const chipEls = new Map();
+
+  function drawStatic() {
+    staticLayer.innerHTML = "";
+    el("text", { class: "section he", x: 580, y: 18, "text-anchor": "middle" }, staticLayer, "המערך המקורי אצל rank 0");
+    el("text", { class: "section he", x: 580, y: 522, "text-anchor": "middle" }, staticLayer, "המערך הממוין אצל rank 0");
+    for (let c = 0; c < P; c++) {
+      const x = colX(c), col = `var(--b${c})`;
+      el("rect", { class: "col", x, y: 92, width: CW, height: 400, rx: 14 }, staticLayer);
+      el("text", { class: "colhead", x: x + 16, y: 122 }, staticLayer, "P" + c);
+      el("text", { class: "range", x: x + CW - 16, y: 121, "text-anchor": "end", fill: col }, staticLayer, `[${lo(c)}, ${hi(c)})`);
+      el("text", { class: "zone he", x: x + CW - 14, y: 152, "text-anchor": "start" }, staticLayer, version === "A" ? "זיכרון מקומי" : "הבלוק שהתקבל ודליים קטנים");
+      if (version === "B") {
+        for (let j = 0; j < P; j++) {
+          el("rect", { class: "slot", x: colX(c) + 10 + j * 64, y: 234, width: 60, height: 112, rx: 8 }, staticLayer);
+          el("text", { class: "slotlbl", x: colX(c) + 40 + j * 64, y: 226, "text-anchor": "middle", fill: `var(--b${j})` }, staticLayer, "P" + j);
+        }
+      }
+      const by = 360, bb = 470;
+      el("path", { class: "bucket", d: `M ${x + 8} ${by} L ${x + 22} ${bb} L ${x + CW - 22} ${bb} L ${x + CW - 8} ${by}`, stroke: col }, staticLayer);
+      el("text", { class: "zone he", x: x + CW - 14, y: by - 6, "text-anchor": "start" }, staticLayer, "הדלי של התהליך");
+    }
+  }
+
+  function renderCounts(s) {
+    cntLayer.innerHTML = "";
+    if (!s.counts) return;
+    const avg = N / P;
+    s.counts.forEach((cnt, c) => {
+      el("text", { class: "cnt" + (cnt >= 2 * avg ? " warn" : ""), x: colX(c) + CW / 2, y: 488, "text-anchor": "middle" }, cntLayer,
+        `count=${cnt}  displs=${s.displs[c]}`);
+    });
+  }
+
+  function renderChips(s, animate) {
+    const dur = Math.round(speedMs[document.getElementById("speed").value] * 0.6);
+    svg.style.setProperty("--dur", dur + "ms");
+    svg.classList.toggle("noanim", !animate || reduceMotion);
+    const keep = new Set();
+    s.chips.forEach((c) => {
+      keep.add(c.key);
+      let g = chipEls.get(c.key);
+      const target = `translate(${c.x}px, ${c.y}px)`;
+      if (!g) {
+        g = el("g", { class: "chip" }, chipLayer);
+        el("rect", {}, g); el("text", {}, g);
+        chipEls.set(c.key, g);
+        const from = c.from && animate && !reduceMotion ? c.from : { x: c.x, y: c.y };
+        g.style.transition = "none";
+        g.style.transform = `translate(${from.x}px, ${from.y}px)`;
+        g.style.opacity = 0;
+        g.getBoundingClientRect();
+        g.style.transition = "";
+      }
+      const r = g.firstChild, t = g.lastChild;
+      r.setAttribute("x", -c.size / 2); r.setAttribute("y", -c.size / 2);
+      r.setAttribute("width", c.size); r.setAttribute("height", c.size);
+      t.textContent = c.val;
+      g.setAttribute("class", "chip " + c.cls + (c.size === BIG ? " big" : ""));
+      g.style.transform = target;
+      g.style.opacity = "";
+    });
+    for (const [k, g] of chipEls) {
+      if (keep.has(k)) continue;
+      chipEls.delete(k);
+      if (animate && !reduceMotion) { g.style.opacity = 0; setTimeout(() => g.remove(), dur); }
+      else g.remove();
+    }
+  }
+
+  // ---------- panels ----------
+  function renderPanels(s) {
+    const names = PH[version];
+    document.getElementById("stepNum").textContent = step;
+    document.getElementById("phaseName").textContent = names[s.phase];
+    document.getElementById("phases").innerHTML = names.map((n, k) =>
+      `<span class="${k < s.phase ? "done" : k === s.phase ? "now" : ""}">${k}. ${n}</span>`).join("");
+    const [what, why] = story(s);
+    document.getElementById("storyTitle").textContent = names[s.phase];
+    document.getElementById("story").innerHTML = `<p>${what}</p>`;
+    document.getElementById("why").innerHTML = why;
+
+    document.getElementById("code").innerHTML = CODE[version].map(([line, ph]) => {
+      const esc = line.replace(/&/g, "&amp;").replace(/</g, "&lt;")
+        .replace(/(\/\*.*\*\/)/, '<span class="c">$1</span>')
+        .replace(/\b(MPI_\w+)(?=\()/g, '<span class="f">$1</span>');
+      return `<div class="${ph.includes(s.phase) ? "hl" : ""}">${esc}</div>`;
+    }).join("");
+    document.getElementById("codeNote").textContent = version === "A"
+      ? "lo ו-hi מחושבים מה-rank, כמו בתרגיל 4. הפלט: מערך sorted אצל rank 0."
+      : "sc/sd – כמה ומאיפה לשלוח לכל תהליך; rc/rd – כמה ולאן לקבל מכל תהליך.";
+
+    const n = s.net;
+    const maxRecv = Math.max(...s.recvd), maxScan = Math.max(...s.scanned);
+    document.getElementById("stats").innerHTML = [
+      [n.data, "מספרי נתונים שעברו ברשת"],
+      [n.ints, "מונים (counts) שעברו ברשת"],
+      [n.msgs, "הודעות נקודה-לנקודה (לפי מימוש פשוט)"],
+      [maxRecv, "הכי הרבה מספרים שתהליך אחד קיבל"],
+      [maxScan, "הכי הרבה מספרים שתהליך אחד עבר עליהם"],
+      [s.counts ? Math.max(...s.counts) : "–", "הדלי הגדול ביותר"],
+    ].map(([v, l]) => `<div class="stat"><b>${v}</b><span>${l}</span></div>`).join("");
+
+    const mxWrap = document.getElementById("mxWrap");
+    if (s.matrix) {
+      mxWrap.classList.remove("hidden");
+      let h = `<tr><th></th>${[...Array(P)].map((_, j) => `<th>P${j}</th>`).join("")}<th>Σ</th></tr>`;
+      s.matrix.forEach((row, c) => {
+        h += `<tr><th>P${c}</th>${row.map((v, j) => `<td class="${c === j ? "diag" : v === 0 ? "zero" : ""}" style="${c !== j && v ? `color: var(--b${j})` : ""}">${v}</td>`).join("")}<th>${row.reduce((a, b) => a + b, 0)}</th></tr>`;
+      });
+      h += `<tr><th>Σ</th>${[...Array(P)].map((_, j) => `<th>${s.matrix.reduce((a, r) => a + r[j], 0)}</th>`).join("")}<th></th></tr>`;
+      document.getElementById("mx").innerHTML = h;
+    } else mxWrap.classList.add("hidden");
+
+    renderCompare();
+    document.getElementById("prev").disabled = step === 0;
+    document.getElementById("next").disabled = step === states.length - 1;
+  }
+
+  function renderCompare() {
+    const a = buildFor("A").slice(-1)[0], b = buildFor("B").slice(-1)[0];
+    const on = (v) => (version === v ? "on" : "");
+    const rows = [
+      ["מספרים שכל תהליך מקבל בפיזור", N, N / P],
+      ["מספרים שתהליך עובר עליהם (מקסימום)", Math.max(...a.scanned), Math.max(...b.scanned)],
+      ["מספרי נתונים ברשת – סך הכול", a.net.data, b.net.data],
+      ["מונים ברשת", a.net.ints, b.net.ints],
+      ["קריאות קיבוציות", 3, 5],
+    ];
+    document.getElementById("cmp").innerHTML =
+      `<tr><th></th><th class="${on("A")}">גרסה א</th><th class="${on("B")}">גרסה ב</th></tr>` +
+      rows.map(([l, x, y]) => `<tr><td>${l}</td><td class="${on("A")}">${x}</td><td class="${on("B")}">${y}</td></tr>`).join("");
+  }
+
+  // ---------- control ----------
+  function rebuild() {
+    setPlaying(false);
+    states = version === "A" ? buildA() : buildB();
+    step = 0;
+    chipEls.forEach((g) => g.remove()); chipEls.clear();
+    drawStatic();
+    render(false);
+  }
+  function render(animate) {
+    const s = states[step];
+    renderChips(s, animate);
+    renderCounts(s);
+    renderPanels(s);
+  }
+  function go(k, animate) {
+    k = Math.max(0, Math.min(states.length - 1, k));
+    const fwd = k === step + 1;
+    step = k;
+    render(animate && fwd);
+  }
+  function setPlaying(on) {
+    playing = on; clearTimeout(timer);
+    document.getElementById("play").textContent = on ? "עצירה" : "הרצה";
+    if (on) { if (step === states.length - 1) go(0, false); tick(); }
+  }
+  function tick() {
+    if (!playing) return;
+    if (step >= states.length - 1) { setPlaying(false); return; }
+    go(step + 1, true);
+    timer = setTimeout(tick, speedMs[document.getElementById("speed").value]);
+  }
+
+  function randomData(kind) {
+    if (kind === "deck") return DECK.slice();
+    const r = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
+    if (kind === "uniform") return Array.from({ length: N }, () => r(0, 99));
+    const out = Array.from({ length: 9 }, () => r(0, 24)).concat(Array.from({ length: 3 }, () => r(25, 99)));
+    for (let i = out.length - 1; i > 0; i--) { const j = r(0, i); [out[i], out[j]] = [out[j], out[i]]; }
+    return out;
+  }
+
+  document.querySelectorAll("#verSeg button").forEach((b) => b.onclick = () => {
+    version = b.dataset.v;
+    document.querySelectorAll("#verSeg button").forEach((x) => x.setAttribute("aria-pressed", x === b));
+    rebuild();
+  });
+  document.querySelectorAll("#dataSeg button").forEach((b) => b.onclick = () => {
+    data = randomData(b.dataset.d);
+    document.querySelectorAll("#dataSeg button").forEach((x) => x.setAttribute("aria-pressed", x === b));
+    rebuild();
+  });
+  document.getElementById("reset").onclick = () => { setPlaying(false); go(0, false); };
+  document.getElementById("prev").onclick = () => { setPlaying(false); go(step - 1, false); };
+  document.getElementById("next").onclick = () => { setPlaying(false); go(step + 1, true); };
+  document.getElementById("play").onclick = () => setPlaying(!playing);
+  document.addEventListener("keydown", (e) => {
+    if (e.target.tagName === "INPUT") return;
+    if (["ArrowRight", "ArrowDown", "PageDown"].includes(e.key)) { e.preventDefault(); setPlaying(false); go(step + 1, true); }
+    else if (["ArrowLeft", "ArrowUp", "PageUp"].includes(e.key)) { e.preventDefault(); setPlaying(false); go(step - 1, false); }
+    else if (e.key === " ") { e.preventDefault(); setPlaying(!playing); }
+    else if (e.key === "Home") { setPlaying(false); go(0, false); }
+  });
+
+  rebuild();
+})();
+</script>
+</body>
+</html>
