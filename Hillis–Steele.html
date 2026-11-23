@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>המחשת סכום קידומות – Hillis–Steele</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #F5F7FB;
+    --surface: #FFFFFF;
+    --ink: #14213D;
+    --text: #1F2937;
+    --muted: #6B7280;
+    --line: #D5DBE5;
+    --tint: #EEF2F8;
+    --accent: #E8772E;
+    --accent-soft: #FDEBDD;
+    --idle: #E5E7EB;
+    --idle-ink: #8A919C;
+    --arrow: #14213D;
+    --arrow-dim: #C9CFD8;
+    --code-bg: #0F1A2E;
+    --code-ink: #E6EDF3;
+    --code-cm: #8FA3BF;
+    --ok: #2E7D5B;
+    --ok-soft: #E3F2EA;
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --bg: #0D1424;
+      --surface: #16203A;
+      --ink: #E8EEF9;
+      --text: #D9E0EC;
+      --muted: #9AA6BA;
+      --line: #2C3A5A;
+      --tint: #1E2A47;
+      --accent: #F08A45;
+      --accent-soft: #4A2E1D;
+      --idle: #263149;
+      --idle-ink: #7D879B;
+      --arrow: #C9D6F0;
+      --arrow-dim: #34425F;
+      --code-bg: #0A111F;
+      --code-ink: #E6EDF3;
+      --code-cm: #8FA3BF;
+      --ok: #5CC08F;
+      --ok-soft: #173426;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #0D1424; --surface: #16203A; --ink: #E8EEF9; --text: #D9E0EC; --muted: #9AA6BA;
+    --line: #2C3A5A; --tint: #1E2A47; --accent: #F08A45; --accent-soft: #4A2E1D; --idle: #263149;
+    --idle-ink: #7D879B; --arrow: #C9D6F0; --arrow-dim: #34425F; --code-bg: #0A111F; --code-ink: #E6EDF3;
+    --code-cm: #8FA3BF; --ok: #5CC08F; --ok-soft: #173426;
+  }
+  *, *::before, *::after { box-sizing: inherit; }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Assistant", "Segoe UI", "Arial Hebrew", Arial, sans-serif;
+    font-size: 18px;
+    line-height: 1.5;
+  }
+  .page { max-width: 1180px; margin: 0 auto; padding: 28px 20px 40px; }
+
+  header h1 {
+    margin: 0;
+    color: var(--ink);
+    font-size: clamp(28px, 4vw, 40px);
+    font-weight: 800;
+    line-height: 1.15;
+  }
+  header p { margin: 6px 0 0; color: var(--muted); font-size: 19px; max-width: 62ch; }
+
+  .toolbar {
+    margin: 22px 0 14px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .group { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  button, select {
+    font: inherit;
+    font-size: 17px;
+    font-weight: 700;
+    border-radius: 8px;
+    border: 1px solid var(--line);
+    background: var(--surface);
+    color: var(--ink);
+    padding: 8px 16px;
+    cursor: pointer;
+    min-height: 42px;
+  }
+  button.primary { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+  button.play { background: var(--accent); border-color: var(--accent); color: #FFFFFF; }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+  button:focus-visible, select:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  label.sz { color: var(--muted); font-weight: 600; font-size: 16px; display: flex; align-items: center; gap: 8px; }
+
+  .stage {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 14px 10px 6px;
+    overflow-x: auto;
+  }
+  svg { display: block; width: 100%; height: auto; min-width: 620px; direction: ltr; }
+  .cell rect { transition: fill 0.35s, stroke 0.2s; }
+  .cell text { font-family: "Assistant", Arial, sans-serif; font-weight: 700; }
+  .cell { cursor: default; }
+  .cell.hoverable { cursor: pointer; }
+  .rowlabel { font-family: Consolas, "DejaVu Sans Mono", monospace; font-weight: 700; font-size: 20px; }
+
+  .below {
+    display: grid;
+    grid-template-columns: 1.35fr 1fr;
+    gap: 16px;
+    margin-top: 16px;
+  }
+  @media (max-width: 860px) { .below { grid-template-columns: 1fr; } }
+
+  .status {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-right: 6px solid var(--accent);
+    border-radius: 10px;
+    padding: 16px 20px;
+    min-height: 150px;
+  }
+  .status .phase { font-weight: 800; color: var(--ink); font-size: 20px; margin: 0 0 6px; }
+  .status p { margin: 0 0 8px; max-width: 70ch; }
+  .status.done { border-right-color: var(--ok); }
+  .hovernote { color: var(--muted); font-size: 16px; margin-top: 8px; }
+  .hovernote b { color: var(--ink); }
+
+  .side { display: flex; flex-direction: column; gap: 12px; }
+  pre.code {
+    margin: 0;
+    direction: ltr;
+    text-align: left;
+    background: var(--code-bg);
+    color: var(--code-ink);
+    border-radius: 10px;
+    padding: 14px 16px;
+    font-family: Consolas, "DejaVu Sans Mono", monospace;
+    font-size: 16px;
+    line-height: 1.55;
+    overflow-x: auto;
+  }
+  pre.code .cm { color: var(--code-cm); }
+  pre.code .hl { color: #FFC58F; }
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .stat {
+    background: var(--tint);
+    border-radius: 8px;
+    padding: 8px 10px;
+    text-align: center;
+  }
+  .stat .v { font-size: 26px; font-weight: 800; color: var(--ink); line-height: 1.1; direction: ltr; }
+  .stat .l { font-size: 14px; color: var(--muted); font-weight: 600; }
+  .stat.accent .v { color: var(--accent); }
+
+  .phasebar { display: flex; gap: 10px; justify-content: flex-start; min-height: 36px; margin: 0 8px 6px; align-items: center; }
+  .chip { border-radius: 999px; padding: 4px 14px; font-weight: 700; font-size: 16px; background: var(--tint); color: var(--muted); transition: background 0.25s, color 0.25s; }
+  .chip.on { background: var(--accent); color: #FFFFFF; }
+  .chip.sync.on { background: var(--ink); color: var(--surface); }
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; color: var(--muted); font-size: 15px; margin: 8px 6px 2px; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .sw { width: 22px; height: 14px; border-radius: 3px; display: inline-block; border: 1px solid var(--line); }
+  .ln { width: 24px; height: 0; border-top: 3px solid; display: inline-block; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .cell rect { transition: none; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <header>
+    <h1>סכום קידומות ב-log₂n צעדים: Hillis–Steele</h1>
+    <p>בכל צעד, כל תא מוסיף לעצמו את הערך הישן של התא שנמצא d מקומות לפניו. המרחק d מוכפל בכל צעד.</p>
+  </header>
+
+  <div class="toolbar">
+    <div class="group" dir="ltr">
+      <button id="prev">⏮ צעד אחורה</button>
+      <button id="reset">איפוס</button>
+      <button id="play" class="play">הרצה אוטומטית ▶</button>
+      <button id="next" class="primary">צעד קדימה ⏭</button>
+    </div>
+    <div class="group">
+      <label class="sz">מספר איברים
+        <select id="size">
+          <option value="8" selected>n = 8</option>
+          <option value="16">n = 16</option>
+        </select>
+      </label>
+      <button id="shuffle">ערכים אקראיים</button>
+      <button id="classic">דוגמת השקף</button>
+    </div>
+  </div>
+
+  <div class="stage">
+    <div class="phasebar" aria-hidden="true">
+      <span class="chip" id="chip-read">1. כולם קוראים ערכים ישנים</span>
+      <span class="chip sync" id="chip-sync">נקודת סנכרון</span>
+      <span class="chip" id="chip-write">2. כולם כותבים</span>
+    </div>
+    <svg id="viz" role="img" aria-label="המחשת אלגוריתם Hillis–Steele"></svg>
+    <div class="legend">
+      <span><i class="ln" style="border-color: var(--arrow)"></i>הערך הישן של התא שנמצא d מקומות לפני</span>
+      <span><i class="ln" style="border-color: var(--arrow-dim)"></i>הערך הישן של התא עצמו</span>
+      <span><i class="sw" style="background: var(--idle)"></i>מעבד ממתין – אין ממי לקבל</span>
+      <span><i class="sw" style="background: var(--accent-soft)"></i>התוצאה הסופית</span>
+    </div>
+  </div>
+
+  <div class="below">
+    <div class="status" id="status" aria-live="polite">
+      <div class="phase" id="phase"></div>
+      <div id="desc"></div>
+      <div class="hovernote" id="hovernote">העבירו את העכבר מעל תא כדי לראות איך חושב ואילו איברי קלט הוא כבר מכיל.</div>
+    </div>
+    <div class="side">
+      <pre class="code" id="code"></pre>
+      <div class="stats">
+        <div class="stat"><div class="v" id="s-d">–</div><div class="l">מרחק d</div></div>
+        <div class="stat"><div class="v" id="s-active">–</div><div class="l">מעבדים עובדים</div></div>
+        <div class="stat"><div class="v" id="s-idle">–</div><div class="l">מעבדים ממתינים</div></div>
+        <div class="stat accent"><div class="v" id="s-adds">0</div><div class="l">חיבורים עד כה</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  const NS = "http://www.w3.org/2000/svg";
+  const svg = document.getElementById("viz");
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const CLASSIC = [3, 1, 7, 0, 4, 1, 6, 3];
+
+  let n = 8;
+  let input = CLASSIC.slice();
+  let rows = [];          // rows[0] = input, rows[k] = after step k
+  let L = 3;              // number of steps
+  let step = 0;           // how many steps are shown
+  let animating = false;
+  let playTimer = null;
+  let geo = {};
+
+  const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+  function compute() {
+    rows = [input.slice()];
+    L = Math.ceil(Math.log2(n));
+    for (let k = 1; k <= L; k++) {
+      const d = 1 << (k - 1);
+      const prev = rows[k - 1];
+      const cur = prev.slice();
+      for (let i = d; i < n; i++) cur[i] = prev[i - d] + prev[i];   // old values only
+      rows.push(cur);
+    }
+  }
+
+  function el(tag, attrs, parent) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+
+  function layout() {
+    const labelW = 96;
+    const cw = n === 8 ? 86 : 50;
+    const gap = n === 8 ? 12 : 8;
+    const ch = 52;
+    const rowGap = n === 8 ? 118 : 104;
+    const top = 26;
+    geo = { labelW, cw, gap, ch, rowGap, top,
+      W: labelW + n * (cw + gap) + 16,
+      H: top + L * rowGap + ch + 22 };
+    geo.x = (i) => labelW + i * (cw + gap);
+    geo.cx = (i) => geo.x(i) + cw / 2;
+    geo.y = (k) => top + k * rowGap;
+  }
+
+  /* ---------- drawing ---------- */
+  let cellEls = [];   // cellEls[k][i] = {g, rect, text}
+  let arrowEls = [];  // arrowEls[k] = {diag: [...], vert: [...]}
+  let dotLayer;
+
+  function build() {
+    compute();
+    layout();
+    svg.setAttribute("viewBox", `0 0 ${geo.W} ${geo.H}`);
+    svg.innerHTML = "";
+    const defs = el("defs", {}, svg);
+    [["ah", "--arrow"], ["ahd", "--arrow-dim"]].forEach(([id, v]) => {
+      const m = el("marker", { id, viewBox: "0 -5 10 10", refX: 9, refY: 0, markerWidth: 7, markerHeight: 7, orient: "auto" }, defs);
+      el("path", { d: "M0,-5L10,0L0,5", fill: css(v) }, m);
+    });
+
+    // arrows (drawn first, under cells)
+    arrowEls = [null];
+    const arrowLayer = el("g", {}, svg);
+    for (let k = 1; k <= L; k++) {
+      const d = 1 << (k - 1);
+      const y1 = geo.y(k - 1) + geo.ch + 6, y2 = geo.y(k) - 8;
+      const vert = [], diag = [];
+      for (let i = 0; i < n; i++) {
+        vert.push(el("line", { x1: geo.cx(i), y1, x2: geo.cx(i), y2,
+          stroke: css("--arrow-dim"), "stroke-width": 2, "marker-end": "url(#ahd)", opacity: 0 }, arrowLayer));
+        if (i >= d) {
+          const xs = geo.cx(i - d) + 6, xe = geo.cx(i) - 6;
+          diag.push({ i, line: el("line", { x1: xs, y1, x2: xe, y2,
+            stroke: css("--arrow"), "stroke-width": 2.4, "marker-end": "url(#ah)", opacity: 0 }, arrowLayer) });
+        }
+      }
+      arrowEls.push({ vert, diag });
+    }
+
+    // row labels and cells
+    cellEls = [];
+    for (let k = 0; k <= L; k++) {
+      const label = k === 0 ? "x" : `d = ${1 << (k - 1)}`;
+      const lt = el("text", { x: 10, y: geo.y(k) + geo.ch / 2 + 7, class: "rowlabel",
+        fill: k === 0 ? css("--ink") : css("--accent") }, svg);
+      lt.textContent = label;
+      const row = [];
+      for (let i = 0; i < n; i++) {
+        const g = el("g", { class: "cell", tabindex: -1 }, svg);
+        const rect = el("rect", { x: geo.x(i), y: geo.y(k), width: geo.cw, height: geo.ch, rx: 8,
+          fill: "transparent", stroke: css("--line"), "stroke-width": 1.5, "stroke-dasharray": "5 5" }, g);
+        const text = el("text", { x: geo.cx(i), y: geo.y(k) + geo.ch / 2 + 8, "text-anchor": "middle",
+          "font-size": n === 8 ? 24 : 19, fill: css("--text") }, g);
+        g.addEventListener("mouseenter", () => hover(k, i));
+        g.addEventListener("mouseleave", unhover);
+        row.push({ g, rect, text });
+      }
+      cellEls.push(row);
+    }
+    // index labels under the last row
+    for (let i = 0; i < n; i++) {
+      const t = el("text", { x: geo.cx(i), y: geo.y(L) + geo.ch + 20, "text-anchor": "middle",
+        "font-size": 14, fill: css("--muted"), "font-family": "Consolas, monospace" }, svg);
+      t.textContent = i;
+    }
+    dotLayer = el("g", {}, svg);
+
+  }
+
+  /* ---------- state rendering ---------- */
+  function paintRow(k, visible, final) {
+    const d = k === 0 ? 0 : 1 << (k - 1);
+    cellEls[k].forEach((c, i) => {
+      if (!visible) {
+        c.rect.setAttribute("fill", "transparent");
+        c.rect.setAttribute("stroke", css("--line"));
+        c.rect.setAttribute("stroke-dasharray", "5 5");
+        c.text.textContent = "";
+        c.g.classList.remove("hoverable");
+        return;
+      }
+      let fill = css("--tint"), ink = css("--text"), weight = 700;
+      if (k > 0 && i < d) { fill = css("--idle"); ink = css("--idle-ink"); }
+      else if (k > 0) { fill = css("--surface"); }
+      if (final && !(k > 0 && i < d)) { fill = css("--accent-soft"); ink = css("--ink"); weight = 800; }
+      if (final && k > 0 && i < d) { ink = css("--ink"); }
+      c.rect.setAttribute("fill", fill);
+      c.rect.setAttribute("stroke", k > 0 && i >= d && !final ? css("--line") : fill);
+      c.rect.removeAttribute("stroke-dasharray");
+      c.text.setAttribute("fill", ink);
+      c.text.setAttribute("font-weight", weight);
+      c.text.textContent = rows[k][i];
+      c.g.classList.add("hoverable");
+    });
+  }
+
+  function paintArrows(k, mode) {   // mode: 0 hidden, 1 dim (past), 2 active
+    const a = arrowEls[k];
+    a.vert.forEach((l) => l.setAttribute("opacity", mode === 0 ? 0 : mode === 1 ? 0.35 : 0.9));
+    a.diag.forEach(({ line }) => line.setAttribute("opacity", mode === 0 ? 0 : mode === 1 ? 0.18 : 1));
+  }
+
+  function renderStatic() {
+    for (let k = 0; k <= L; k++) paintRow(k, k <= step, k === L && step === L);
+    for (let k = 1; k <= L; k++) paintArrows(k, k > step ? 0 : k === step ? 2 : 1);
+    dotLayer.innerHTML = "";
+    chips(null);
+    updatePanel("done");
+  }
+
+  function chips(which) {
+    ["read", "sync", "write"].forEach((c) =>
+      document.getElementById("chip-" + c).classList.toggle("on", which === c || (which === "write" && c === "sync")));
+  }
+
+  /* ---------- the animated step: read old values, then write ---------- */
+  function animateStep(k, done) {
+    animating = true;
+    setButtons();
+    const d = 1 << (k - 1);
+    paintArrows(k, 2);
+    for (let j = 1; j < k; j++) paintArrows(j, 1);
+    for (let j = 0; j < k; j++) paintRow(j, true, false);
+    chips("read");
+    updatePanel("read", k);
+
+    if (reduceMotion) {
+      finishWrite();
+      return;
+    }
+    const dots = [];
+    const y1 = geo.y(k - 1) + geo.ch + 6, y2 = geo.y(k) - 10;
+    for (let i = 0; i < n; i++) {
+      dots.push({ x1: geo.cx(i), x2: geo.cx(i), c: el("circle", { r: 6, fill: css("--arrow-dim") }, dotLayer) });
+      if (i >= d) dots.push({ x1: geo.cx(i - d) + 6, x2: geo.cx(i) - 6, c: el("circle", { r: 7, fill: css("--accent") }, dotLayer) });
+    }
+    const dur = 1100;
+    const t0 = performance.now();
+    function frame(now) {
+      const t = Math.min(1, (now - t0) / dur);
+      const e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+      dots.forEach((p) => {
+        p.c.setAttribute("cx", p.x1 + (p.x2 - p.x1) * e);
+        p.c.setAttribute("cy", y1 + (y2 - y1) * e);
+      });
+      if (t < 1) requestAnimationFrame(frame);
+      else setTimeout(finishWrite, 120);
+    }
+    requestAnimationFrame(frame);
+
+    function finishWrite() {
+      dotLayer.innerHTML = "";
+      chips("write");
+      paintRow(k, true, k === L);
+      updatePanel("write", k);
+      setTimeout(() => {
+        chips(null);
+        animating = false;
+        updatePanel("done");
+        setButtons();
+        if (done) done();
+      }, reduceMotion ? 0 : 900);
+    }
+  }
+
+  /* ---------- side panel ---------- */
+  function totalAdds(s) {
+    let t = 0;
+    for (let k = 1; k <= s; k++) t += n - (1 << (k - 1));
+    return t;
+  }
+
+  function codeHtml(k) {
+    const d = k ? 1 << (k - 1) : null;
+    const dl = d === null ? "for (d = 1; d &lt; n; d *= 2)" :
+      `for (d = 1; d &lt; n; d *= 2)   <span class="cm">/* d = ${d} */</span>`;
+    return `<span class="${k ? "hl" : ""}">${dl}</span>
+    forall (i = d; i &lt; n; i++)
+        x[i] = x[i - d] + x[i];
+        <span class="cm">/* reads OLD values only */</span>`;
+  }
+
+  function updatePanel(phase, kArg) {
+    const k = kArg !== undefined ? kArg : step;
+    const d = k ? 1 << (k - 1) : 0;
+    document.getElementById("code").innerHTML = codeHtml(k);
+    document.getElementById("s-d").textContent = k ? d : "–";
+    document.getElementById("s-active").textContent = k ? n - d : "–";
+    document.getElementById("s-idle").textContent = k ? d : "–";
+    document.getElementById("s-adds").textContent = totalAdds(phase === "read" ? k - 1 : k);
+
+    const status = document.getElementById("status");
+    const ph = document.getElementById("phase");
+    const desc = document.getElementById("desc");
+    status.classList.toggle("done", k === L && phase === "done");
+
+    if (k === 0) {
+      ph.textContent = "מצב התחלתי";
+      desc.innerHTML = `<p>מערך הקלט x עם ${n} ערכים, ומעבד אחד לכל תא. האלגוריתם יבצע <bdi dir="ltr">log₂${n} = ${L}</bdi> צעדים, והמרחק d יוכפל בכל צעד: <bdi dir="ltr">${Array.from({ length: L }, (_, j) => 1 << j).join(", ")}</bdi>.</p>
+        <p>לחצו „צעד קדימה” כדי לראות את הצעד הראשון.</p>`;
+      return;
+    }
+    const range = Math.min(2 * d, n);
+    if (phase === "read") {
+      ph.innerHTML = `צעד ${k} מתוך ${L} (<bdi dir="ltr">d = ${d}</bdi>): קריאה`;
+      desc.innerHTML = `<p>כל מעבד <bdi dir="ltr">i ≥ ${d}</bdi> קורא שני ערכים <b>ישנים</b> מהשורה הקודמת: את הערך שלו (חץ אפור) ואת הערך של התא שנמצא ${d} מקומות לפניו (נקודה כתומה).</p>
+        <p>${d === 1 ? "התא הראשון אפור" : `${d} התאים הראשונים אפורים`}: אין להם ממי לקבל, והמעבדים שלהם ממתינים בצעד הזה.</p>`;
+    } else if (phase === "write") {
+      ph.innerHTML = `צעד ${k} מתוך ${L} (<bdi dir="ltr">d = ${d}</bdi>): כתיבה`;
+      desc.innerHTML = `<p>רק אחרי שכל המעבדים סיימו לקרוא, כולם כותבים את התוצאה. זו נקודת הסנכרון בין הצעדים: אם מעבד היה כותב לפני שהשכן שלו קרא, השכן היה מקבל ערך חדש והתוצאה הייתה שגויה.</p>`;
+    } else if (k < L) {
+      ph.textContent = `צעד ${k} מתוך ${L} הושלם`;
+      desc.innerHTML = `<p>בוצעו ${n - d} חיבורים במקביל. עכשיו כל תא i מחזיק את סכום עד ${range} האיברים האחרונים עד אליו – פי 2 מהצעד הקודם.</p>
+        <p>בצעד הבא המרחק יוכפל ל-<bdi dir="ltr">d = ${2 * d}</bdi>.</p>`;
+    } else {
+      ph.textContent = "הסתיים – זו התוצאה";
+      desc.innerHTML = `<p>אחרי ${L} צעדים כל תא מחזיק את סכום כל האיברים עד אליו: השורה האחרונה היא סכום הקידומות.</p>
+        <p>מהיר: ${L} צעדים במקום ${n - 1}. אבל לא חסכוני: ${totalAdds(L)} חיבורים בסך הכל, לעומת ${n - 1} בלולאה סדרתית.</p>`;
+    }
+  }
+
+  /* ---------- hover: where did this value come from? ---------- */
+  function hover(k, i) {
+    if (animating || k > step) return;
+    const d = k ? 1 << (k - 1) : 0;
+    const lo = Math.max(0, i - Math.min(2 * d, n) + 1);
+    const from = k === 0 ? i : lo;
+    // highlight covered input cells
+    for (let j = from; j <= i; j++) {
+      cellEls[0][j].rect.setAttribute("stroke", css("--accent"));
+      cellEls[0][j].rect.setAttribute("stroke-width", 3.5);
+    }
+    if (k > 0) {
+      [i, i - d].forEach((j) => {
+        if (j < 0) return;
+        cellEls[k - 1][j].rect.setAttribute("stroke", css("--ink"));
+        cellEls[k - 1][j].rect.setAttribute("stroke-width", 3.5);
+      });
+    }
+    cellEls[k][i].rect.setAttribute("stroke", css("--accent"));
+    cellEls[k][i].rect.setAttribute("stroke-width", 3.5);
+
+    const note = document.getElementById("hovernote");
+    const cover = `<bdi dir="ltr">${from === i ? `x[${i}]` : `x[${from}] + … + x[${i}]`}</bdi>`;
+    if (k === 0) {
+      note.innerHTML = `<b><bdi dir="ltr">x[${i}] = ${rows[0][i]}</bdi></b> – ערך קלט.`;
+    } else if (i < d) {
+      note.innerHTML = `<b>תא ${i} בצעד <bdi dir="ltr">d = ${d}</bdi>:</b> אין לו ממי לקבל, ולכן המעבד ממתין והערך ${rows[k][i]} נשאר. הוא כבר מכיל את ${cover}.`;
+    } else {
+      note.innerHTML = `<b>תא ${i} בצעד <bdi dir="ltr">d = ${d}</bdi>:</b> הערך הישן של תא ${i - d} ועוד הערך הישן של תא ${i}: <bdi dir="ltr">${rows[k - 1][i - d]} + ${rows[k - 1][i]} = <b>${rows[k][i]}</b></bdi>. מכיל עכשיו את ${cover}.`;
+    }
+  }
+  function unhover() {
+    for (let k = 0; k <= L; k++) cellEls[k].forEach((c) => c.rect.setAttribute("stroke-width", 1.5));
+    for (let k = 0; k <= L; k++) paintRow(k, k <= step, k === L && step === L);
+    document.getElementById("hovernote").innerHTML = HOVER_HINT;
+  }
+
+  /* ---------- controls ---------- */
+  const btn = (id) => document.getElementById(id);
+  function setButtons() {
+    btn("prev").disabled = animating || step === 0;
+    btn("next").disabled = animating || step === L;
+    btn("reset").disabled = animating;
+    btn("size").disabled = animating;
+    btn("shuffle").disabled = animating;
+    btn("classic").disabled = animating;
+  }
+  function next(done) {
+    if (animating || step >= L) return;
+    step++;
+    animateStep(step, done);
+  }
+  function prev() {
+    if (animating || step === 0) return;
+    step--;
+    renderStatic();
+    setButtons();
+  }
+  function stopPlay() {
+    clearTimeout(playTimer);
+    playTimer = null;
+    btn("play").textContent = "הרצה אוטומטית ▶";
+  }
+  function play() {
+    if (playTimer !== null) { stopPlay(); return; }
+    if (step === L) { step = 0; renderStatic(); }
+    btn("play").textContent = "עצירה ⏸";
+    playTimer = 0;
+    const loop = () => {
+      if (playTimer === null) return;
+      if (step >= L) { stopPlay(); setButtons(); return; }
+      next(() => { if (playTimer !== null) playTimer = setTimeout(loop, 900); });
+    };
+    loop();
+  }
+  const HOVER_HINT = "העבירו את העכבר מעל תא כדי לראות איך חושב ואילו איברי קלט הוא כבר מכיל.";
+  function restart(newInput) {
+    stopPlay();
+    document.getElementById("hovernote").innerHTML = HOVER_HINT;
+    if (newInput) input = newInput;
+    step = 0;
+    build();
+    renderStatic();
+    setButtons();
+  }
+
+  btn("next").addEventListener("click", () => { stopPlay(); next(); });
+  btn("prev").addEventListener("click", () => { stopPlay(); prev(); });
+  btn("reset").addEventListener("click", () => restart());
+  btn("play").addEventListener("click", play);
+  btn("size").addEventListener("change", (e) => {
+    n = +e.target.value;
+    restart(n === 8 ? CLASSIC.slice() : Array.from({ length: 16 }, (_, i) => CLASSIC[i % 8]));
+  });
+  btn("shuffle").addEventListener("click", () => restart(Array.from({ length: n }, () => Math.floor(Math.random() * 10))));
+  btn("classic").addEventListener("click", () => {
+    restart(n === 8 ? CLASSIC.slice() : Array.from({ length: 16 }, (_, i) => CLASSIC[i % 8]));
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.target.tagName === "SELECT") return;
+    if (e.key === "ArrowLeft" || e.key === " ") { e.preventDefault(); stopPlay(); next(); }
+    if (e.key === "ArrowRight") { e.preventDefault(); stopPlay(); prev(); }
+  });
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => restart());
+
+  restart();
+})();
+</script>
+</body>
+</html>
