@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>המחשת מחסום עץ (Tree Barrier) - מדויק</title>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <style>
+    body {
+      font-family: 'Segoe UI', Assistant, Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #FAFAFA;
+      color: #333;
+      margin: 0;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    h1 { color: #1e293b; margin-bottom: 5px; }
+    .subtitle { color: #64748b; margin-bottom: 25px; font-weight: bold; }
+
+    .container {
+      background: white;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+      width: 100%;
+      max-width: 1050px;
+      text-align: center;
+      border: 1px solid #ecf0f1;
+    }
+
+    .controls {
+      margin-bottom: 20px;
+      display: flex;
+      gap: 15px;
+      justify-content: center;
+      align-items: center;
+      direction: ltr;
+    }
+
+    button {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 5px;
+      background-color: #34495e;
+      color: white;
+      cursor: pointer;
+      font-weight: bold;
+      font-size: 16px;
+      transition: background 0.3s;
+      font-family: inherit;
+    }
+    button:hover:not(:disabled) { background-color: #2c3e50; }
+    button:disabled { background-color: #bdc3c7; cursor: not-allowed; }
+
+    #play-btn { background-color: #27ae60; }
+    #play-btn:hover:not(:disabled) { background-color: #2ecc71; }
+
+    .status-msg {
+      margin-top: 20px;
+      font-size: 18px;
+      min-height: 3.5em;
+      color: #1e293b;
+      background: #f8fafc;
+      padding: 15px 25px;
+      border-right: 5px solid #e67e22;
+      text-align: right;
+      border-radius: 6px;
+      font-weight: bold;
+      transition: border-color 0.3s;
+    }
+
+    #visualizer {
+      direction: ltr;
+      margin: 0 auto;
+      background-color: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 20px 0;
+    }
+
+    .node-circle {
+      fill: #1e293b;
+      stroke: #0f172a;
+      stroke-width: 2px;
+    }
+
+    .node-text {
+      font-size: 15px;
+      font-weight: bold;
+      fill: #ffffff;
+      pointer-events: none;
+    }
+
+    .trunk-line {
+      stroke: #cbd5e1;
+      stroke-width: 3px;
+    }
+
+    .edge-line {
+      fill: none;
+      stroke-width: 3px;
+      opacity: 0.15;
+      transition: opacity 0.3s, stroke-width 0.3s;
+    }
+
+    .edge-arr { stroke: #e67e22; }
+    .edge-rel { stroke: #2a9d8f; }
+
+    .active-edge {
+      opacity: 1 !important;
+      stroke-width: 4px !important;
+    }
+
+    .anim-dot { pointer-events: none; }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <h1>מחסום עץ (Tree Barrier)</h1>
+  <div class="subtitle">סנכרון אלגנטי המפזר את העומס על פני כל התהליכים ב- O(log n) שלבים</div>
+
+  <div class="controls">
+    <button id="prev-btn" disabled>⏮ צעד אחורה</button>
+    <button id="reset-btn">איפוס</button>
+    <button id="play-btn">ריצה אוטומטית ▶</button>
+    <button id="next-btn">צעד קדימה ⏭</button>
+  </div>
+
+  <div id="visualizer"></div>
+  <div id="status" class="status-msg">טוען...</div>
+</div>
+
+<script>
+  const width = 900;
+  const height = 480;
+  const svg = d3.select("#visualizer")
+          .append("svg")
+          .attr("width", width)
+          .attr("height", height);
+
+  svg.append("defs").selectAll("marker")
+          .data([
+            { id: "arrow-arr", color: "#e67e22" },
+            { id: "arrow-rel", color: "#2a9d8f" }
+          ])
+          .enter().append("marker")
+          .attr("id", d => d.id)
+          .attr("viewBox", "0 -5 10 10")
+          .attr("refX", 8)
+          .attr("refY", 0)
+          .attr("markerWidth", 6)
+          .attr("markerHeight", 6)
+          .attr("orient", "auto")
+          .append("path")
+          .attr("fill", d => d.color)
+          .attr("d", "M0,-5L10,0L0,5");
+
+  const P = 8;
+  const xStart = 100;
+  const xStep = 100;
+  const yNode = 430;
+  const radius = 20;
+
+  const arrLevels = { 1: 300, 2: 180, 3: 60 };
+  const relLevels = { 1: 320, 2: 200, 3: 80 };
+
+  const trunkY = {
+    0: 40, 1: 280, 2: 160, 3: 280,
+    4: 40, 5: 280, 6: 160, 7: 280
+  };
+
+  for (let i = 0; i < P; i++) {
+    svg.append("line")
+            .attr("class", "trunk-line")
+            .attr("x1", xStart + i * xStep)
+            .attr("y1", yNode - radius)
+            .attr("x2", xStart + i * xStep)
+            .attr("y2", trunkY[i]);
+  }
+
+  // התיקון המדויק לשלבי ההגעה והשחרור
+  const edges = [
+    // שלב הגעה 1
+    { id: 'a1', src: 1, dst: 0, level: 1, type: 'arr', step: 1 },
+    { id: 'a2', src: 3, dst: 2, level: 1, type: 'arr', step: 1 },
+    { id: 'a3', src: 5, dst: 4, level: 1, type: 'arr', step: 1 },
+    { id: 'a4', src: 7, dst: 6, level: 1, type: 'arr', step: 1 },
+
+    // שלב הגעה 2
+    { id: 'a5', src: 2, dst: 0, level: 2, type: 'arr', step: 2 },
+    { id: 'a6', src: 6, dst: 4, level: 2, type: 'arr', step: 2 },
+
+    // שלב הגעה 3
+    { id: 'a7', src: 4, dst: 0, level: 3, type: 'arr', step: 3 },
+
+    // שלב שחרור 1: P0 מודיע ל-P4
+    { id: 'r1', src: 0, dst: 4, level: 3, type: 'rel', step: 4 },
+
+    // שלב שחרור 2: P0 מודיע ל-P2, ו-P4 מודיע ל-P6
+    { id: 'r2', src: 0, dst: 2, level: 2, type: 'rel', step: 5 },
+    { id: 'r3', src: 4, dst: 6, level: 2, type: 'rel', step: 5 },
+
+    // שלב שחרור 3: כל ה-4 מודיעים לבני הזוג שלהם
+    { id: 'r4', src: 0, dst: 1, level: 1, type: 'rel', step: 6 }, // P0 -> P1
+    { id: 'r5', src: 2, dst: 3, level: 1, type: 'rel', step: 6 }, // P2 -> P3
+    { id: 'r6', src: 4, dst: 5, level: 1, type: 'rel', step: 6 }, // P4 -> P5
+    { id: 'r7', src: 6, dst: 7, level: 1, type: 'rel', step: 6 }  // P6 -> P7
+  ];
+
+  svg.selectAll(".edge-line")
+          .data(edges)
+          .enter()
+          .append("path")
+          .attr("class", d => `edge-line edge-${d.type} step-${d.step}`)
+          .attr("id", d => d.id)
+          .attr("d", function(d) {
+            const x1 = xStart + d.src * xStep;
+            const x2 = xStart + d.dst * xStep;
+
+            if (d.type === 'arr') {
+              const y = arrLevels[d.level];
+              return `M ${x1},${yNode - radius} L ${x1},${y} L ${x2 + 8},${y}`;
+            } else {
+              const y = relLevels[d.level];
+              return `M ${x1},${y} L ${x2},${y} L ${x2},${yNode - radius - 8}`;
+            }
+          })
+          .attr("marker-end", d => d.type === 'arr' ? "url(#arrow-arr)" : "url(#arrow-rel)");
+
+  const nodes = svg.selectAll(".node-group")
+          .data(d3.range(P))
+          .enter()
+          .append("g")
+          .attr("transform", d => `translate(${xStart + d * xStep}, ${yNode})`);
+
+  nodes.append("circle")
+          .attr("class", "node-circle")
+          .attr("r", radius);
+
+  nodes.append("text")
+          .attr("class", "node-text")
+          .attr("text-anchor", "middle")
+          .attr("dy", "0.35em")
+          .text(d => `P${d}`);
+
+  let stepIndex = 0;
+  const maxSteps = 6;
+  let isPlaying = false;
+  let playTimer = null;
+
+  const descriptions = [
+    "מצב התחלתי: כל התהליכים (P0-P7) הגיעו למחסום וממתינים. עץ הסנכרון מוכן לפעולה.",
+    "שלב הגעה 1: תהליכים אי-זוגיים מדווחים לזוגיים הסמוכים (P1 אל P0, P3 אל P2, P5 אל P4, P7 אל P6).",
+    "שלב הגעה 2: רבע מהתהליכים מדווחים הלאה (P2 אל P0, P6 אל P4).",
+    "שלב הגעה 3: תהליך P4 מדווח אל P0. כעת P0 (השורש) יודע בוודאות שכל התהליכים הגיעו!",
+    "שלב שחרור 1: תהליך P0 יוזם את שרשרת השחרור ומודיע ל-P4.",
+    "שלב שחרור 2: תהליך P0 מודיע ל-P2, ובמקביל תהליך P4 מודיע ל-P6.",
+    "שלב שחרור 3: ארבעת התהליכים (0,2,4,6) מודיעים בו-זמנית לבני הזוג שלהם (1,3,5,7). המחסום הושלם!"
+  ];
+
+  function renderStep(step) {
+    d3.selectAll(".edge-line").classed("active-edge", false);
+    svg.selectAll(".anim-dot").remove();
+
+    if (step > 0 && step <= maxSteps) {
+      d3.selectAll(`.step-${step}`).classed("active-edge", true);
+
+      const activeEdges = edges.filter(e => e.step === step);
+      activeEdges.forEach(edge => {
+        const pathNode = d3.select(`#${edge.id}`).node();
+        const color = edge.type === 'arr' ? '#e67e22' : '#2a9d8f';
+
+        const dot = svg.append("circle")
+                .attr("class", "anim-dot")
+                .attr("r", 6)
+                .attr("fill", color);
+
+        dot.transition()
+                .duration(1200)
+                .ease(d3.easeCubicInOut)
+                .attrTween("transform", translateAlong(pathNode))
+                .on("end", function() { d3.select(this).remove(); });
+      });
+
+      document.getElementById("status").style.borderRightColor = activeEdges[0].type === 'arr' ? '#e67e22' : '#2a9d8f';
+    }
+
+    if (step === maxSteps) {
+      document.getElementById("status").style.borderRightColor = '#27ae60';
+    } else if (step === 0) {
+      document.getElementById("status").style.borderRightColor = '#e67e22';
+    }
+
+    document.getElementById("status").innerText = descriptions[step];
+
+    document.getElementById("prev-btn").disabled = (step === 0);
+    document.getElementById("next-btn").disabled = (step === maxSteps);
+
+    if (step === maxSteps && isPlaying) {
+      pause();
+    }
+  }
+
+  function translateAlong(path) {
+    const l = path.getTotalLength();
+    return function() {
+      return function(t) {
+        const p = path.getPointAtLength(t * l);
+        return `translate(${p.x},${p.y})`;
+      };
+    };
+  }
+
+  function nextStep() { if (stepIndex < maxSteps) { stepIndex++; renderStep(stepIndex); } }
+  function prevStep() { if (stepIndex > 0) { stepIndex--; renderStep(stepIndex); } }
+  function resetSim() { pause(); stepIndex = 0; renderStep(0); }
+
+  function togglePlay() {
+    if (isPlaying) pause();
+    else play();
+  }
+
+  function play() {
+    if (stepIndex === maxSteps) stepIndex = 0;
+    isPlaying = true;
+    const btn = document.getElementById("play-btn");
+    btn.innerHTML = "עצור ⏸";
+    btn.style.backgroundColor = "#e67e22";
+
+    renderStep(stepIndex);
+
+    playTimer = setInterval(() => {
+      if (stepIndex < maxSteps) {
+        stepIndex++;
+        renderStep(stepIndex);
+      } else {
+        pause();
+      }
+    }, 1800);
+  }
+
+  function pause() {
+    isPlaying = false;
+    clearInterval(playTimer);
+    const btn = document.getElementById("play-btn");
+    btn.innerHTML = "ריצה אוטומטית ▶";
+    btn.style.backgroundColor = "#27ae60";
+  }
+
+  document.getElementById("next-btn").addEventListener("click", () => { pause(); nextStep(); });
+  document.getElementById("prev-btn").addEventListener("click", () => { pause(); prevStep(); });
+  document.getElementById("reset-btn").addEventListener("click", resetSim);
+  document.getElementById("play-btn").addEventListener("click", togglePlay);
+
+  renderStep(0);
+
+</script>
+
+</body>
+</html>
