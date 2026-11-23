@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>המחשת מחסום פרפר (Butterfly Barrier)</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Assistant, Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #FAFAFA;
+            color: #333;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        h1 { color: #1e293b; margin-bottom: 5px; }
+        .subtitle { color: #64748b; margin-bottom: 25px; font-weight: bold; }
+
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            width: 100%;
+            max-width: 1000px;
+            text-align: center;
+            border: 1px solid #ecf0f1;
+        }
+
+        .controls {
+            margin-bottom: 20px;
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            align-items: center;
+            direction: ltr; /* Buttons LTR for flow */
+        }
+
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            background-color: #34495e;
+            color: white;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 16px;
+            transition: background 0.3s;
+            font-family: inherit;
+        }
+        button:hover:not(:disabled) { background-color: #2c3e50; }
+        button:disabled { background-color: #bdc3c7; cursor: not-allowed; }
+
+        #play-btn { background-color: #27ae60; }
+        #play-btn:hover:not(:disabled) { background-color: #2ecc71; }
+
+        .status-msg {
+            margin-top: 20px;
+            font-size: 18px;
+            min-height: 3em;
+            color: #1e293b;
+            background: #f8fafc;
+            padding: 15px 25px;
+            border-right: 5px solid #3b82f6;
+            text-align: right;
+            border-radius: 6px;
+            font-weight: bold;
+        }
+
+        /* SVG Graph Styles */
+        #visualizer {
+            direction: ltr; /* Graph flows left to right */
+            margin: 0 auto;
+            background-color: #ffffff;
+        }
+
+        .node-circle {
+            fill: #e2e8f0;
+            stroke: #334155;
+            stroke-width: 2.5px;
+            transition: fill 0.3s, stroke 0.3s;
+        }
+
+        .node-circle.active-node {
+            fill: #334155;
+        }
+
+        .node-text {
+            font-size: 14px;
+            font-weight: bold;
+            fill: #1e293b;
+            pointer-events: none;
+        }
+
+        .edge-line {
+            stroke: #cbd5e1;
+            stroke-width: 2px;
+            transition: stroke 0.3s, stroke-width 0.3s, opacity 0.3s;
+            opacity: 0.5;
+        }
+
+        /* Stage highlighting colors based on the slide */
+        .stage-1-active { stroke: #f39c12 !important; stroke-width: 4px !important; opacity: 1 !important; } /* Orange */
+        .stage-2-active { stroke: #1abc9c !important; stroke-width: 4px !important; opacity: 1 !important; } /* Teal */
+        .stage-3-active { stroke: #2980b9 !important; stroke-width: 4px !important; opacity: 1 !important; } /* Blue */
+
+        .msg-dot {
+            opacity: 0;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>מחסום פרפר (Butterfly Barrier)</h1>
+    <div class="subtitle">סנכרון גלובלי מבוזר ב- log(n) שלבים, ללא צורך בשלב שחרור (Release)</div>
+
+    <div class="controls">
+        <button id="prev-btn" disabled>⏮ צעד אחורה</button>
+        <button id="reset-btn">איפוס</button>
+        <button id="play-btn">ריצה אוטומטית ▶</button>
+        <button id="next-btn">צעד קדימה ⏭</button>
+    </div>
+
+    <div id="visualizer"></div>
+    <div id="status" class="status-msg">טוען...</div>
+</div>
+
+<script>
+    const width = 800;
+    const height = 500;
+    const margin = { top: 40, right: 60, bottom: 20, left: 60 };
+
+    const svg = d3.select("#visualizer")
+        .append("svg")
+        .attr("width", width)
+        .attr("height", height);
+
+    const P = 8; // Number of processes
+    const stages = Math.log2(P); // 3 stages (0 to 3 columns = 4 columns total)
+
+    const xScale = d3.scaleLinear().domain([0, stages]).range([margin.left, width - margin.right]);
+    const yScale = d3.scaleLinear().domain([0, P - 1]).range([margin.top, height - margin.bottom - 40]);
+
+    // Graph Data Structures
+    const nodes = [];
+    const edges = [];
+
+    // Create Nodes
+    for (let s = 0; s <= stages; s++) {
+        for (let p = 0; p < P; p++) {
+            nodes.push({ id: `S${s}_P${p}`, stage: s, p: p, x: xScale(s), y: yScale(p) });
+        }
+    }
+
+    // Create Edges (Butterfly pattern: XOR distance)
+    for (let s = 0; s < stages; s++) {
+        let dist = Math.pow(2, s); // 1, 2, 4
+        for (let p = 0; p < P; p++) {
+            let targetP = p ^ dist; // Bitwise XOR exactly matches butterfly pairing
+
+            // Straight edge (process keeps its own state)
+            edges.push({
+                id: `E_S${s}_P${p}_Straight`,
+                source: nodes.find(n => n.stage === s && n.p === p),
+                target: nodes.find(n => n.stage === s + 1 && n.p === p),
+                stage: s + 1,
+                dist: dist,
+                type: 'straight'
+            });
+
+            // Cross edge (process sends message to partner)
+            edges.push({
+                id: `E_S${s}_P${p}_Cross`,
+                source: nodes.find(n => n.stage === s && n.p === p),
+                target: nodes.find(n => n.stage === s + 1 && n.p === targetP),
+                stage: s + 1,
+                dist: dist,
+                type: 'cross'
+            });
+        }
+    }
+
+    // --- Draw SVG Elements ---
+
+    // Draw Edges
+    svg.selectAll(".edge-line")
+        .data(edges)
+        .enter()
+        .append("line")
+        .attr("class", d => `edge-line stage-${d.stage}-edge`)
+        .attr("id", d => d.id)
+        .attr("x1", d => d.source.x)
+        .attr("y1", d => d.source.y)
+        .attr("x2", d => d.target.x)
+        .attr("y2", d => d.target.y);
+
+    // Draw Column Labels (Stages)
+    const stageLabels = ["התחלה", "שלב 1 (מרחק 1)", "שלב 2 (מרחק 2)", "שלב 3 (מרחק 4)"];
+    for (let s = 0; s <= stages; s++) {
+        svg.append("text")
+            .attr("x", xScale(s))
+            .attr("y", margin.top - 20)
+            .attr("text-anchor", "middle")
+            .style("font-weight", "bold")
+            .style("fill", "#64748b")
+            .text(stageLabels[s]);
+    }
+
+    // Draw Nodes
+    const nodeGroups = svg.selectAll(".node-group")
+        .data(nodes)
+        .enter()
+        .append("g")
+        .attr("class", "node-group")
+        .attr("transform", d => `translate(${d.x},${d.y})`);
+
+    nodeGroups.append("circle")
+        .attr("class", "node-circle")
+        .attr("id", d => d.id)
+        .attr("r", 14);
+
+    // Add P0-P7 labels only on the first and last columns
+    nodeGroups.filter(d => d.stage === 0 || d.stage === stages)
+        .append("text")
+        .attr("class", "node-text")
+        .attr("x", d => d.stage === 0 ? -25 : 25)
+        .attr("y", 5)
+        .attr("text-anchor", d => d.stage === 0 ? "end" : "start")
+        .text(d => `P${d.p}`);
+
+    // --- Animation & State Logic ---
+
+    let stepIndex = 0;
+    const maxSteps = 4;
+    let isPlaying = false;
+    let playTimer = null;
+
+    const descriptions = [
+        "מצב התחלתי: כל התהליכים (P0-P7) הגיעו למחסום, נעצרו, ומוכנים להתחיל בסנכרון.",
+        "שלב 1: התהליכים מתקשרים עם שכנים במרחק 1 (לדוגמה P0 מחליף הודעה עם P1). כל תהליך מסונכרן עכשיו עם תהליך נוסף.",
+        "שלב 2: התהליכים מתקשרים עם שכנים במרחק 2 (לדוגמה P0 מול P2). כל תהליך יודע כעת ש-4 תהליכים הגיעו למחסום.",
+        "שלב 3: התהליכים מתקשרים עם שכנים במרחק 4 (לדוגמה P0 מול P4). בסיום השלב, כל התהליכים יודעים בוודאות שכולם הגיעו למחסום.",
+        "המחסום הושלם! אין צורך בהודעות Release. כל התהליכים רשאים להמשיך את ריצת התוכנית במקביל."
+    ];
+
+    function renderStep(step) {
+        // Reset all active classes
+        d3.selectAll(".edge-line").classed("stage-1-active stage-2-active stage-3-active", false);
+        d3.selectAll(".node-circle").classed("active-node", false);
+
+        // Highlight nodes up to current step
+        nodes.forEach(n => {
+            if (n.stage <= step) {
+                d3.select(`#${n.id}`).classed("active-node", true);
+            }
+        });
+
+        // Highlight active edges and animate messages if a stage is advancing
+        if (step > 0 && step <= stages) {
+            const activeClass = `stage-${step}-active`;
+
+            // Highlight paths
+            const activeEdges = d3.selectAll(`.stage-${step}-edge`);
+            activeEdges.classed(activeClass, true);
+
+            // Animate message dots traveling along the cross paths
+            const crossEdges = edges.filter(e => e.stage === step && e.type === 'cross');
+
+            // Remove old dots
+            svg.selectAll(".msg-dot").remove();
+
+            // Create new dots and animate them
+            const dots = svg.selectAll(".msg-dot")
+                .data(crossEdges)
+                .enter()
+                .append("circle")
+                .attr("class", "msg-dot")
+                .attr("r", 6)
+                .style("fill", getStageColor(step))
+                .attr("cx", d => d.source.x)
+                .attr("cy", d => d.source.y)
+                .style("opacity", 1);
+
+            dots.transition()
+                .duration(1200)
+                .ease(d3.easeCubicInOut)
+                .attr("cx", d => d.target.x)
+                .attr("cy", d => d.target.y)
+                .style("opacity", 0)
+                .remove();
+        }
+
+        // Update Description text
+        document.getElementById("status").innerText = descriptions[step];
+
+        // Update buttons
+        document.getElementById("prev-btn").disabled = (step === 0);
+        document.getElementById("next-btn").disabled = (step === maxSteps);
+
+        if (step === maxSteps && isPlaying) {
+            pause();
+        }
+    }
+
+    function getStageColor(stage) {
+        if(stage === 1) return "#f39c12"; // Orange
+        if(stage === 2) return "#1abc9c"; // Teal
+        if(stage === 3) return "#2980b9"; // Blue
+        return "#333";
+    }
+
+    // Controls
+    function nextStep() { if (stepIndex < maxSteps) { stepIndex++; renderStep(stepIndex); } }
+    function prevStep() { if (stepIndex > 0) { stepIndex--; renderStep(stepIndex); } }
+    function resetSim() { pause(); stepIndex = 0; renderStep(0); }
+
+    function togglePlay() {
+        if (isPlaying) pause();
+        else play();
+    }
+
+    function play() {
+        if (stepIndex === maxSteps) stepIndex = 0; // Restart if at end
+        isPlaying = true;
+        const btn = document.getElementById("play-btn");
+        btn.innerHTML = "עצור ⏸";
+        btn.style.backgroundColor = "#e67e22";
+
+        renderStep(stepIndex); // render current immediately
+
+        playTimer = setInterval(() => {
+            if (stepIndex < maxSteps) {
+                stepIndex++;
+                renderStep(stepIndex);
+            } else {
+                pause();
+            }
+        }, 1800); // Wait for transition to finish
+    }
+
+    function pause() {
+        isPlaying = false;
+        clearInterval(playTimer);
+        const btn = document.getElementById("play-btn");
+        btn.innerHTML = "ריצה אוטומטית ▶";
+        btn.style.backgroundColor = "#27ae60";
+    }
+
+    // Event Listeners
+    document.getElementById("next-btn").addEventListener("click", () => { pause(); nextStep(); });
+    document.getElementById("prev-btn").addEventListener("click", () => { pause(); prevStep(); });
+    document.getElementById("reset-btn").addEventListener("click", resetSim);
+    document.getElementById("play-btn").addEventListener("click", togglePlay);
+
+    // Initial render
+    renderStep(0);
+
+</script>
+
+</body>
+</html>
