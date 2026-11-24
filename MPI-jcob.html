@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>המחשת איטרציית יעקובי ב-MPI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #F5F7FB; --surface: #FFFFFF; --ink: #14213D; --text: #1F2937; --muted: #6B7280;
+    --line: #D5DBE5; --tint: #EEF2F8; --accent: #E8772E; --accent-soft: #FDEBDD;
+    --old: #24406E; --old-soft: #DCE6F7; --code-bg: #0F1A2E; --code-ink: #E6EDF3; --code-cm: #8FA3BF;
+    --ok: #2E7D5B; --ok-soft: #E3F2EA; --bad: #C0392B; --bad-soft: #F9E0DD;
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --bg: #0D1424; --surface: #16203A; --ink: #E8EEF9; --text: #D9E0EC; --muted: #9AA6BA;
+      --line: #2C3A5A; --tint: #1E2A47; --accent: #F08A45; --accent-soft: #4A2E1D;
+      --old: #9DB8EA; --old-soft: #213660; --code-bg: #0A111F; --code-ink: #E6EDF3; --code-cm: #8FA3BF;
+      --ok: #5CC08F; --ok-soft: #173426; --bad: #F07A6C; --bad-soft: #43201C;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #0D1424; --surface: #16203A; --ink: #E8EEF9; --text: #D9E0EC; --muted: #9AA6BA;
+    --line: #2C3A5A; --tint: #1E2A47; --accent: #F08A45; --accent-soft: #4A2E1D;
+    --old: #9DB8EA; --old-soft: #213660; --code-bg: #0A111F; --code-ink: #E6EDF3; --code-cm: #8FA3BF;
+    --ok: #5CC08F; --ok-soft: #173426; --bad: #F07A6C; --bad-soft: #43201C;
+  }
+  *, *::before, *::after { box-sizing: inherit; }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  body { margin: 0; background: var(--bg); color: var(--text);
+    font-family: "Assistant", "Segoe UI", "Arial Hebrew", Arial, sans-serif; font-size: 18px; line-height: 1.5; }
+  .page { max-width: 1180px; margin: 0 auto; padding: 28px 20px 40px; }
+  header h1 { margin: 0; color: var(--ink); font-size: clamp(28px, 4vw, 40px); font-weight: 800; line-height: 1.15; }
+  header p { margin: 6px 0 0; color: var(--muted); font-size: 19px; max-width: 70ch; }
+  .mono, bdi.m { font-family: Consolas, "DejaVu Sans Mono", monospace; }
+
+  .toolbar { margin: 22px 0 14px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; }
+  .group { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  button, select { font: inherit; font-size: 17px; font-weight: 700; border-radius: 8px; border: 1px solid var(--line);
+    background: var(--surface); color: var(--ink); padding: 8px 16px; cursor: pointer; min-height: 42px; }
+  button.primary { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+  button.play { background: var(--accent); border-color: var(--accent); color: #FFFFFF; }
+  button:disabled, select:disabled { opacity: 0.4; cursor: not-allowed; }
+  button:focus-visible, select:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  label.sel { color: var(--muted); font-weight: 600; font-size: 16px; display: flex; align-items: center; gap: 8px; }
+
+  .stage { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 10px 8px; overflow-x: auto; }
+  .phasebar { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 6px 8px; }
+  .chip { border-radius: 999px; padding: 4px 14px; font-weight: 700; font-size: 16px; background: var(--tint); color: var(--muted); transition: background 0.25s, color 0.25s; }
+  .chip.on { background: var(--accent); color: #FFFFFF; }
+  .chip.done { background: var(--old-soft); color: var(--old); }
+  .iterlabel { margin-inline-start: auto; font-weight: 800; color: var(--ink); align-self: center; }
+  svg { display: block; width: 100%; height: auto; min-width: 680px; direction: ltr; }
+  svg text { font-family: "Assistant", Arial, sans-serif; }
+  svg .m { font-family: Consolas, "DejaVu Sans Mono", monospace; }
+  .cellrect { transition: fill 0.3s, stroke 0.3s; }
+
+  .below { display: grid; grid-template-columns: 1.2fr 1fr; gap: 16px; margin-top: 16px; }
+  @media (max-width: 900px) { .below { grid-template-columns: 1fr; } }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 18px; }
+  .status { border-right: 6px solid var(--accent); min-height: 150px; }
+  .status.ok { border-right-color: var(--ok); }
+  .status.bad { border-right-color: var(--bad); }
+  .status h2 { margin: 0 0 6px; font-size: 20px; color: var(--ink); }
+  .status p { margin: 0 0 8px; max-width: 70ch; }
+  .subst { margin-top: 10px; display: grid; gap: 4px; direction: ltr; text-align: left;
+    font-family: Consolas, "DejaVu Sans Mono", monospace; font-size: 16px; }
+  .subst .row { background: var(--tint); border-radius: 6px; padding: 4px 10px; overflow-x: auto; white-space: nowrap; }
+  .subst .o { color: var(--old); font-weight: 700; }
+  .subst .n { color: var(--accent); font-weight: 700; }
+
+  .side { display: flex; flex-direction: column; gap: 12px; }
+  pre.code { margin: 0; direction: ltr; text-align: left; background: var(--code-bg); color: var(--code-ink);
+    border-radius: 10px; padding: 12px 14px; font-family: Consolas, "DejaVu Sans Mono", monospace; font-size: 14.5px;
+    line-height: 1.55; overflow-x: auto; }
+  pre.code .cm { color: var(--code-cm); }
+  pre.code .ln { display: block; border-radius: 4px; padding: 0 4px; margin: 0 -4px; transition: background 0.25s; }
+  pre.code .ln.hl { background: rgba(232, 119, 46, 0.28); }
+
+  table.hist { width: 100%; border-collapse: collapse; direction: ltr; font-family: Consolas, "DejaVu Sans Mono", monospace; font-size: 15px; }
+  table.hist th { color: var(--muted); font-weight: 700; padding: 4px 6px; border-bottom: 1px solid var(--line); text-align: right; }
+  table.hist td { padding: 3px 6px; text-align: right; border-bottom: 1px solid var(--tint); }
+  table.hist tr.last td { color: var(--accent); font-weight: 700; }
+  .histwrap { max-height: 230px; overflow-y: auto; }
+  .chartcap { font-size: 15px; color: var(--muted); margin: 0 0 4px; }
+
+  @media (prefers-reduced-motion: reduce) { .cellrect, .chip, pre.code .ln { transition: none; } }
+</style>
+</head>
+<body>
+<div class="page">
+  <header>
+    <h1>איטרציית יעקובי ב-MPI, שלב אחר שלב</h1>
+    <p>שלושה תהליכים, ולכל תהליך שורה אחת של המערכת. כל תהליך מחזיק עותק של כל הווקטור x.</p>
+  </header>
+
+  <div class="toolbar">
+    <div class="group" dir="ltr">
+      <button id="prev">⏮ צעד אחורה</button>
+      <button id="reset">איפוס</button>
+      <button id="play" class="play">הרצה אוטומטית ▶</button>
+      <button id="next" class="primary">צעד קדימה ⏭</button>
+    </div>
+    <div class="group">
+      <button id="nextIter">איטרציה שלמה ⏭⏭</button>
+      <label class="sel">מערכת
+        <select id="system">
+          <option value="good" selected>אלכסון שולט (מתכנסת)</option>
+          <option value="bad">ללא אלכסון שולט</option>
+        </select>
+      </label>
+      <label class="sel"><bdi dir="ltr">EPS</bdi>
+        <select id="eps">
+          <option value="1e-2">0.01</option>
+          <option value="1e-4" selected>0.0001</option>
+          <option value="1e-6">0.000001</option>
+        </select>
+      </label>
+    </div>
+  </div>
+
+  <div class="stage">
+    <div class="phasebar" aria-hidden="true">
+      <span class="chip" id="c1">1. חישוב מקומי</span>
+      <span class="chip" id="c2"><bdi dir="ltr">2. MPI_Allgatherv</bdi></span>
+      <span class="chip" id="c3"><bdi dir="ltr">3. MPI_Allreduce (MAX)</bdi></span>
+      <span class="chip" id="c4">4. החלטה משותפת</span>
+      <span class="iterlabel" id="iterlabel"></span>
+    </div>
+    <svg id="viz" viewBox="0 0 960 440" role="img" aria-label="שלושה תהליכים מבצעים איטרציית יעקובי"></svg>
+  </div>
+
+  <div class="below">
+    <div class="card status" id="status" aria-live="polite">
+      <h2 id="stTitle"></h2>
+      <div id="stBody"></div>
+      <div class="subst" id="subst"></div>
+    </div>
+    <div class="side">
+      <pre class="code" id="code"></pre>
+      <div class="card">
+        <p class="chartcap">השינוי הגדול ביותר בכל איטרציה <bdi dir="ltr">(max |Δx|)</bdi>, בסקאלה לוגריתמית. הקו המקווקו הוא EPS.</p>
+        <svg id="chart" viewBox="0 0 420 150" style="min-width:0"></svg>
+      </div>
+      <div class="card histwrap">
+        <table class="hist" id="hist"><thead><tr><th>k</th><th>x1</th><th>x2</th><th>x3</th><th>max |Δx|</th></tr></thead><tbody></tbody></table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  const NS = "http://www.w3.org/2000/svg";
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const SYSTEMS = {
+    good: { A: [[4, -1, 1], [4, -8, 1], [-2, 1, 5]], b: [7, -21, 15], maxIt: 40 },
+    bad:  { A: [[1, 1, 3], [2, 1, -3], [11, 29, 1]], b: [10, 11, 1], maxIt: 6 },
+  };
+  let sys, EPS, X, D, LD, K, s = 0, animating = false, playTimer = null;
+
+  const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+  const fmt = (v) => {
+    if (!isFinite(v)) return "∞";
+    const a = Math.abs(v);
+    if (a >= 1e5) return v.toExponential(2);
+    if (a >= 100) return v.toFixed(0);
+    return v.toFixed(4);
+  };
+
+  /* ---------- precompute all iterations ---------- */
+  function compute() {
+    const { A, b, maxIt } = sys;
+    X = [[0, 0, 0]]; D = [null]; LD = [null];
+    for (let k = 1; k <= maxIt; k++) {
+      const old = X[k - 1], nw = [], ld = [];
+      for (let i = 0; i < 3; i++) {
+        let sum = 0;
+        for (let j = 0; j < 3; j++) if (j !== i) sum += A[i][j] * old[j];
+        nw.push((b[i] - sum) / A[i][i]);
+        ld.push(Math.abs(nw[i] - old[i]));
+      }
+      X.push(nw); LD.push(ld); D.push(Math.max(...ld));
+      if (Math.max(...ld) <= EPS) break;
+    }
+    K = X.length - 1;
+  }
+  const totalSteps = () => 4 * K;
+  const decode = (st) => (st === 0 ? { it: 0, ph: 0 } : { it: Math.ceil(st / 4), ph: st - 4 * (Math.ceil(st / 4) - 1) });
+
+  /* ---------- SVG scene ---------- */
+  const svg = document.getElementById("viz");
+  const COLX = [165, 480, 795];
+  const CW = 72, CH = 42, GAP = 8;
+  let E = {};
+  function el(tag, a, p) { const e = document.createElementNS(NS, tag); for (const k in a) e.setAttribute(k, a[k]); (p || svg).appendChild(e); return e; }
+  function txt(x, y, t, a, p) { const e = el("text", Object.assign({ x, y, "text-anchor": "middle" }, a), p); e.textContent = t; return e; }
+  function cellX(c, j) { return COLX[c] - (3 * CW + 2 * GAP) / 2 + j * (CW + GAP); }
+
+  function rowN(i) {
+    const { A, b } = sys, f = A[i][i] < 0 ? -1 : 1;
+    return { a: A[i].map((v) => v * f), b: b[i] * f };
+  }
+  function eqText(i) {
+    const { a: Ai, b: bi } = rowN(i);
+    let s = `x${i + 1} = (${bi}`;
+    for (let j = 0; j < 3; j++) {
+      if (j === i) continue;
+      const c = -Ai[j];
+      const mag = Math.abs(c) === 1 ? "" : Math.abs(c);
+      s += ` ${c >= 0 ? "+" : "−"} ${mag}x${j + 1}`;
+    }
+    return s + `) / ${Ai[i]}`;
+  }
+
+  function build() {
+    svg.innerHTML = "";
+    E = { x: [], nl: [], ld: [], gd: [], dec: [], eq: [] };
+    for (let c = 0; c < 3; c++) {
+      const cx = COLX[c];
+      el("rect", { x: cx - 148, y: 6, width: 296, height: 300, rx: 12, fill: css("--tint"), opacity: 0.55 });
+      txt(cx, 32, `P${c}`, { "font-size": 22, "font-weight": 800, fill: css("--ink") });
+      txt(cx, 54, `אחראי על שורה ${c + 1}`, { "font-size": 15, fill: css("--muted"), direction: "rtl" });
+      el("rect", { x: cx - 136, y: 66, width: 272, height: 38, rx: 8, fill: css("--surface"), stroke: css("--line") });
+      E.eq.push(txt(cx, 91, eqText(c), { class: "m", "font-size": 15, fill: css("--ink") }));
+      txt(cx, 128, "x (עותק מקומי)", { "font-size": 14, fill: css("--muted"), direction: "rtl" });
+      const row = [];
+      for (let j = 0; j < 3; j++) {
+        const x = cellX(c, j);
+        txt(x + CW / 2, 150, `x${j + 1}`, { class: "m", "font-size": 13, fill: css("--muted") });
+        const r = el("rect", { class: "cellrect", x, y: 156, width: CW, height: CH, rx: 7, fill: css("--surface"), stroke: css("--line"), "stroke-width": 1.5 });
+        const t = txt(x + CW / 2, 183, "", { class: "m", "font-size": 15, "font-weight": 700, fill: css("--text") });
+        row.push({ r, t });
+      }
+      E.x.push(row);
+      txt(cx - 62, 226, `x${c + 1} חדש`, { "font-size": 14, fill: css("--muted"), direction: "rtl" });
+      const nr = el("rect", { class: "cellrect", x: cx - 112, y: 232, width: 100, height: CH, rx: 7, fill: "transparent", stroke: css("--line"), "stroke-dasharray": "5 5" });
+      const nt = txt(cx - 62, 259, "", { class: "m", "font-size": 15, "font-weight": 800, fill: css("--accent") });
+      E.nl.push({ r: nr, t: nt });
+      txt(cx + 62, 226, "local_diff", { class: "m", "font-size": 13, fill: css("--muted") });
+      const lr = el("rect", { class: "cellrect", x: cx + 12, y: 232, width: 100, height: CH, rx: 7, fill: "transparent", stroke: css("--line"), "stroke-dasharray": "5 5" });
+      const lt = txt(cx + 62, 259, "", { class: "m", "font-size": 15, "font-weight": 700, fill: css("--text") });
+      E.ld.push({ r: lr, t: lt });
+      E.gd.push(txt(cx, 296, "", { class: "m", "font-size": 14, "font-weight": 700, fill: css("--ink") }));
+    }
+    // Allreduce node
+    E.maxR = el("rect", { x: 380, y: 334, width: 200, height: 46, rx: 23, fill: css("--surface"), stroke: css("--line"), "stroke-width": 1.5 });
+    E.maxT = txt(480, 363, "MPI_MAX", { class: "m", "font-size": 15, "font-weight": 700, fill: css("--muted") });
+    E.decision = txt(480, 418, "", { "font-size": 18, "font-weight": 800, fill: css("--ink"), direction: "rtl" });
+    E.dots = el("g", {});
+  }
+
+  /* ---------- static render of step st ---------- */
+  function put(t, str, base) { t.textContent = str; t.setAttribute("font-size", str.length > 7 ? base - 2.5 : base); }
+  function render(st) {
+    const { it, ph } = decode(st);
+    const xs = ph >= 2 ? X[it] : X[Math.max(0, it - 1)];
+    for (let c = 0; c < 3; c++) {
+      for (let j = 0; j < 3; j++) {
+        const cell = E.x[c][j];
+        put(cell.t, fmt(xs[j]), 15);
+        const readHere = ph === 1 && j !== c;
+        cell.r.setAttribute("fill", readHere ? css("--old-soft") : css("--surface"));
+        cell.r.setAttribute("stroke", readHere ? css("--old") : css("--line"));
+        cell.t.setAttribute("fill", readHere ? css("--old") : css("--text"));
+      }
+      const showNew = ph >= 1 && it > 0;
+      put(E.nl[c].t, showNew ? fmt(X[it][c]) : "", 15);
+      E.nl[c].r.setAttribute("fill", showNew ? css("--accent-soft") : "transparent");
+      E.nl[c].r.setAttribute("stroke", showNew ? css("--accent") : css("--line"));
+      E.nl[c].r.setAttribute("stroke-dasharray", showNew ? "0" : "5 5");
+      put(E.ld[c].t, showNew ? fmt(LD[it][c]) : "", 15);
+      E.ld[c].r.setAttribute("fill", showNew ? css("--surface") : "transparent");
+      E.ld[c].r.setAttribute("stroke", css("--line"));
+      E.ld[c].r.setAttribute("stroke-dasharray", showNew ? "0" : "5 5");
+      E.gd[c].textContent = ph >= 3 ? `diff = ${fmt(D[it])}` : "";
+    }
+    const showMax = ph >= 3;
+    E.maxT.textContent = showMax ? `max = ${fmt(D[it])}` : "MPI_MAX";
+    E.maxT.setAttribute("fill", showMax ? css("--ink") : css("--muted"));
+    E.maxR.setAttribute("stroke", showMax ? css("--accent") : css("--line"));
+    if (ph === 4) {
+      const stop = D[it] <= EPS, last = it === K;
+      E.decision.textContent = stop ? "כל התהליכים עוצרים יחד" : last ? "הערכים מתפוצצים – עוצרים את ההדגמה" : "כל התהליכים ממשיכים לאיטרציה הבאה";
+      E.decision.setAttribute("fill", stop ? css("--ok") : last ? css("--bad") : css("--ink"));
+    } else E.decision.textContent = "";
+    E.dots.innerHTML = "";
+    panel(st);
+  }
+
+  /* ---------- animations (forward only) ---------- */
+  function fly(paths, dur, color, done) {
+    if (reduce) { done(); return; }
+    const dots = paths.map(() => el("circle", { r: 7, fill: color }, E.dots));
+    const t0 = performance.now();
+    (function frame(now) {
+      const t = Math.min(1, (now - t0) / dur), e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+      paths.forEach(([x1, y1, x2, y2], i) => { dots[i].setAttribute("cx", x1 + (x2 - x1) * e); dots[i].setAttribute("cy", y1 + (y2 - y1) * e); });
+      if (t < 1) requestAnimationFrame(frame); else { E.dots.innerHTML = ""; done(); }
+    })(t0);
+  }
+  function animateTo(st, done) {
+    const { it, ph } = decode(st);
+    animating = true; buttons();
+    const finish = () => { render(st); animating = false; buttons(); if (done) done(); };
+    if (ph === 1) {
+      render(st - 1);
+      chips(1); panelPhase(1, it);
+      // old values flow from the x copy into the new cell
+      const p = [];
+      for (let c = 0; c < 3; c++) for (let j = 0; j < 3; j++) if (j !== c)
+        p.push([cellX(c, j) + CW / 2, 198, COLX[c] - 62, 236]);
+      for (let c = 0; c < 3; c++) for (let j = 0; j < 3; j++) if (j !== c) {
+        E.x[c][j].r.setAttribute("fill", css("--old-soft")); E.x[c][j].r.setAttribute("stroke", css("--old"));
+      }
+      fly(p, 1000, css("--old"), finish);
+    } else if (ph === 2) {
+      chips(2); panelPhase(2, it);
+      for (let c = 0; c < 3; c++) for (let j = 0; j < 3; j++) {
+        E.x[c][j].r.setAttribute("fill", css("--surface")); E.x[c][j].r.setAttribute("stroke", css("--line"));
+        E.x[c][j].t.setAttribute("fill", css("--text"));
+      }
+      const p = [];
+      for (let src = 0; src < 3; src++) for (let dst = 0; dst < 3; dst++)
+        p.push([COLX[src] - 62, 236, cellX(dst, src) + CW / 2, 176]);
+      fly(p, 1300, css("--accent"), finish);
+    } else if (ph === 3) {
+      chips(3); panelPhase(3, it);
+      const up = [0, 1, 2].map((c) => [COLX[c] + 62, 276, 480, 340]);
+      fly(up, 900, css("--muted"), () => {
+        E.maxT.textContent = `max = ${fmt(D[it])}`;
+        const down = [0, 1, 2].map((c) => [480, 340, COLX[c], 290]);
+        fly(down, 800, css("--accent"), finish);
+      });
+    } else finish();
+  }
+
+  /* ---------- panel ---------- */
+  function chips(ph) {
+    for (let i = 1; i <= 4; i++) {
+      const c = document.getElementById("c" + i);
+      c.classList.toggle("on", i === ph);
+      c.classList.toggle("done", i < ph);
+    }
+  }
+  const CODE = [
+    ["do {", -1],
+    ["    /* 1: my row, from OLD x only */", 1],
+    ["    new_local = (b[i] - sum) / a[i][i];", 1],
+    ["    local_diff = fabs(new_local - x[i]);", 1],
+    ["    /* 2: everyone gets the whole new x */", 2],
+    ["    MPI_Allgatherv(&new_local, ..., x, ...);", 2],
+    ["    /* 3: largest change, on every process */", 3],
+    ["    MPI_Allreduce(&local_diff, &diff, 1,", 3],
+    ["                  MPI_DOUBLE, MPI_MAX, comm);", 3],
+    ["} while (diff > EPS);  /* 4: same decision */", 4],
+  ];
+  function codeHtml(ph) {
+    return CODE.map(([l, p]) => {
+      const esc = l.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+      const html = esc.replace(/(\/\*.*\*\/)/, '<span class="cm">$1</span>');
+      return `<span class="ln${p === ph ? " hl" : ""}">${html}</span>`;
+    }).join("");
+  }
+  function substRows(it) {
+    const old = X[it - 1];
+    return [0, 1, 2].map((i) => {
+      const { a: Ai, b: bi } = rowN(i);
+      let s = `x${i + 1} = (${bi}`;
+      for (let j = 0; j < 3; j++) {
+        if (j === i) continue;
+        const c = -Ai[j];
+        const mag = Math.abs(c) === 1 ? "" : Math.abs(c) + "·";
+        s += ` ${c >= 0 ? "+" : "−"} ${mag}<span class="o">${fmt(old[j])}</span>`;
+      }
+      return `<div class="row">${s}) / ${Ai[i]} = <span class="n">${fmt(X[it][i])}</span></div>`;
+    }).join("");
+  }
+  function panelPhase(ph, it) {
+    const T = document.getElementById("stTitle"), B = document.getElementById("stBody"), S = document.getElementById("subst");
+    const st = document.getElementById("status");
+    st.classList.remove("ok", "bad");
+    document.getElementById("code").innerHTML = codeHtml(ph);
+    document.getElementById("iterlabel").innerHTML = it ? `איטרציה <bdi dir="ltr">k = ${it}</bdi>` : "";
+    S.innerHTML = "";
+    const eps = `<bdi dir="ltr" class="m">EPS = ${EPS}</bdi>`;
+    if (ph === 0) {
+      T.textContent = "מצב התחלתי";
+      B.innerHTML = `<p>ניחוש התחלתי <bdi dir="ltr" class="m">x = (0, 0, 0)</bdi>. כל תהליך מחזיק עותק מלא של x, ואחראי לחשב משתנה אחד.</p>
+        <p>${sys === SYSTEMS.good ? "האלכסון שולט בכל שורה (4 > 2, 8 > 5, 5 > 3), ולכן השיטה תתכנס." : "המערכת אינה בעלת אלכסון שולט (למשל בשורה 3: 1 לעומת 11 + 29). נראה מה קורה."}</p>`;
+      return;
+    }
+    if (ph === 1) {
+      T.textContent = "שלב 1 – חישוב מקומי";
+      B.innerHTML = `<p>כל תהליך מחשב את המשתנה של השורה שלו <b>רק מתוך הערכים הישנים</b> של x (מסומנים בכחול). אין תקשורת בשלב הזה, ולכן שלוש השורות מחושבות במקביל.</p>`;
+      S.innerHTML = substRows(it);
+    } else if (ph === 2) {
+      T.innerHTML = `שלב 2 – <bdi dir="ltr" class="m">MPI_Allgatherv</bdi>`;
+      B.innerHTML = `<p>כל תהליך תורם את הערך החדש שלו, וכולם מקבלים את הווקטור המלא. זו נקודת הסנכרון של האיטרציה: אף תהליך לא ממשיך לפני שכולם תרמו, ולכן אין צורך ב-<bdi dir="ltr" class="m">MPI_Barrier</bdi>.</p>`;
+    } else if (ph === 3) {
+      T.innerHTML = `שלב 3 – <bdi dir="ltr" class="m">MPI_Allreduce</bdi> עם <bdi dir="ltr" class="m">MPI_MAX</bdi>`;
+      B.innerHTML = `<p>כל תהליך תורם את השינוי שלו (local_diff), וכולם מקבלים את השינוי הגדול ביותר: <bdi dir="ltr" class="m">diff = ${fmt(D[it])}</bdi>.</p>`;
+    } else {
+      const stop = D[it] <= EPS, last = it === K;
+      T.textContent = "שלב 4 – החלטה משותפת";
+      if (stop) {
+        st.classList.add("ok");
+        B.innerHTML = `<p><bdi dir="ltr" class="m">diff = ${fmt(D[it])}</bdi> קטן מ-${eps}, ולכן כל התהליכים עוצרים יחד אחרי ${it} איטרציות.</p>
+          <p>הפתרון: <bdi dir="ltr" class="m">x = (${X[it].map(fmt).join(", ")})</bdi> – כמעט בדיוק (2, 4, 3).</p>`;
+      } else if (last) {
+        st.classList.add("bad");
+        B.innerHTML = `<p>השינוי גדל בכל איטרציה במקום לקטון – השיטה מתבדרת. בלי אלכסון שולט אין הבטחה להתכנסות, והערכים ממשיכים לגדול עד אינסוף.</p>`;
+      } else {
+        B.innerHTML = `<p><bdi dir="ltr" class="m">diff = ${fmt(D[it])}</bdi> גדול מ-${eps}, ולכן ממשיכים לאיטרציה הבאה.</p>
+          <p>כל התהליכים רואים אותו diff, ולכן כולם מחליטים אותו דבר. אם כל תהליך היה בודק רק את השורה שלו, חלק היו עוצרים וחלק ממשיכים – והאחרים היו נתקעים ב-<bdi dir="ltr" class="m">MPI_Allgatherv</bdi> הבא.</p>`;
+      }
+    }
+  }
+  function panel(st) {
+    const { it, ph } = decode(st);
+    chips(ph);
+    panelPhase(ph, it);
+    // history table: iterations whose diff is known
+    const known = ph >= 3 ? it : it - 1;
+    const tb = document.querySelector("#hist tbody");
+    tb.innerHTML = "";
+    for (let k = 0; k <= Math.max(0, known); k++) {
+      const tr = document.createElement("tr");
+      if (k === known && k > 0) tr.className = "last";
+      tr.innerHTML = `<td>${k}</td><td>${fmt(X[k][0])}</td><td>${fmt(X[k][1])}</td><td>${fmt(X[k][2])}</td><td>${k ? fmt(D[k]) : "–"}</td>`;
+      tb.appendChild(tr);
+    }
+    tb.parentElement.parentElement.scrollTop = 1e6;
+    chart(known);
+  }
+  function chart(known) {
+    const c = document.getElementById("chart");
+    c.innerHTML = "";
+    const W = 420, H = 150, L = 46, R = 12, T = 10, B = 26;
+    const vals = D.slice(1);
+    const lo = Math.min(EPS / 10, ...vals), hi = Math.max(10, ...vals);
+    const ly = (v) => T + (H - T - B) * (Math.log10(hi) - Math.log10(v)) / (Math.log10(hi) - Math.log10(lo));
+    const lx = (k) => L + (W - L - R) * (K <= 1 ? 0 : (k - 1) / (K - 1));
+    const mk = (tag, a) => { const e = document.createElementNS(NS, tag); for (const k in a) e.setAttribute(k, a[k]); c.appendChild(e); return e; };
+    mk("line", { x1: L, y1: T, x2: L, y2: H - B, stroke: css("--line") });
+    mk("line", { x1: L, y1: H - B, x2: W - R, y2: H - B, stroke: css("--line") });
+    const ye = ly(EPS);
+    mk("line", { x1: L, y1: ye, x2: W - R, y2: ye, stroke: css("--ok"), "stroke-dasharray": "5 4", "stroke-width": 1.5 });
+    const te = mk("text", { x: L - 6, y: ye + 4, "text-anchor": "end", "font-size": 11, fill: css("--ok"), "font-family": "Consolas, monospace" });
+    te.textContent = "EPS";
+    [hi, lo].forEach((v) => {
+      const t = mk("text", { x: L - 6, y: ly(v) + 4, "text-anchor": "end", "font-size": 11, fill: css("--muted"), "font-family": "Consolas, monospace" });
+      t.textContent = v.toExponential(0);
+    });
+    const tk = mk("text", { x: (L + W) / 2, y: H - 6, "text-anchor": "middle", "font-size": 12, fill: css("--muted") });
+    tk.textContent = "k";
+    if (known < 1) return;
+    const pts = [];
+    for (let k = 1; k <= known; k++) pts.push(`${lx(k)},${ly(D[k])}`);
+    mk("polyline", { points: pts.join(" "), fill: "none", stroke: css("--accent"), "stroke-width": 2.5 });
+    for (let k = 1; k <= known; k++) mk("circle", { cx: lx(k), cy: ly(D[k]), r: 3.5, fill: css("--accent") });
+  }
+
+  /* ---------- controls ---------- */
+  const $ = (id) => document.getElementById(id);
+  function buttons() {
+    $("prev").disabled = animating || s === 0;
+    $("next").disabled = animating || s >= totalSteps();
+    $("nextIter").disabled = animating || s >= totalSteps();
+    ["reset", "system", "eps"].forEach((id) => ($(id).disabled = animating));
+  }
+  function next(done) {
+    if (animating || s >= totalSteps()) { if (done) done(); return; }
+    s++; animateTo(s, done);
+  }
+  function prev() { if (animating || s === 0) return; s--; render(s); buttons(); }
+  function nextIter() {
+    if (animating || s >= totalSteps()) return;
+    stopPlay();
+    s = Math.min(totalSteps(), 4 * Math.ceil((s + 1) / 4));
+    render(s); buttons();
+  }
+  function stopPlay() { clearTimeout(playTimer); playTimer = null; $("play").textContent = "הרצה אוטומטית ▶"; }
+  function play() {
+    if (playTimer !== null) { stopPlay(); return; }
+    if (s >= totalSteps()) { s = 0; render(0); }
+    $("play").textContent = "עצירה ⏸";
+    playTimer = 0;
+    const loop = () => {
+      if (playTimer === null) return;
+      if (s >= totalSteps()) { stopPlay(); buttons(); return; }
+      next(() => { if (playTimer !== null) playTimer = setTimeout(loop, 1100); });
+    };
+    loop();
+  }
+  function restart() {
+    stopPlay();
+    sys = SYSTEMS[$("system").value];
+    EPS = parseFloat($("eps").value);
+    compute(); build(); s = 0; render(0); buttons();
+  }
+  $("next").addEventListener("click", () => { stopPlay(); next(); });
+  $("prev").addEventListener("click", () => { stopPlay(); prev(); });
+  $("nextIter").addEventListener("click", nextIter);
+  $("reset").addEventListener("click", restart);
+  $("play").addEventListener("click", play);
+  $("system").addEventListener("change", restart);
+  $("eps").addEventListener("change", restart);
+  document.addEventListener("keydown", (e) => {
+    if (e.target.tagName === "SELECT") return;
+    if (e.key === "ArrowLeft" || e.key === " ") { e.preventDefault(); stopPlay(); next(); }
+    if (e.key === "ArrowRight") { e.preventDefault(); stopPlay(); prev(); }
+  });
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", restart);
+  restart();
+})();
+</script>
+</body>
+</html>
