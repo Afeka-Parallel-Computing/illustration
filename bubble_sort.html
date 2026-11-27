@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>מיון זוגי-אי-זוגי – Odd-Even Transposition Sort</title>
+<style>
+  :root { --navy:#14213D; --orange:#E8772E; --bg:#EEF2F8; --muted:#6B7280; --green:#2E7D5B; }
+  * { box-sizing:border-box; }
+  body { font-family:'Assistant','Segoe UI',Arial,sans-serif; background:var(--bg); color:#1F2937; margin:0; padding:18px; }
+  h1 { color:var(--navy); margin:0 0 4px; font-size:28px; text-align:center; }
+  .sub { text-align:center; color:var(--muted); margin-bottom:12px; font-size:16px; }
+  .en { direction:ltr; unicode-bidi:isolate; }
+  .mode { display:flex; justify-content:center; gap:10px; margin-bottom:14px; }
+  .mode button { background:#dfe5f0; color:var(--navy); }
+  .mode button.on { background:var(--navy); color:#fff; }
+  .card { background:#fff; border-radius:10px; box-shadow:0 2px 10px rgba(0,0,0,.07); padding:16px; max-width:1060px; margin:0 auto; }
+  .line { display:flex; gap:14px; justify-content:center; direction:ltr; align-items:flex-end; position:relative; padding-top:34px; }
+  .proc { text-align:center; position:relative; }
+  .proc .name { font-weight:bold; color:var(--navy); margin-top:4px; }
+  .vals { display:flex; gap:3px; justify-content:center; border:3px solid #c4ccda; border-radius:8px; padding:6px; min-width:58px; background:#fff; transition:all .3s; }
+  .vals.pair { border-color:var(--orange); background:#FDEBDD; }
+  .vals.idle { opacity:.55; }
+  .num { min-width:30px; padding:6px 4px; border-radius:5px; background:#e8edf6; font-weight:bold; font-size:18px; transition:all .3s; }
+  .num.moved { background:var(--orange); color:#fff; }
+  .num.final { background:#d9f2e3; }
+  .bracket { position:absolute; top:4px; height:22px; border:3px solid var(--orange); border-bottom:none; border-radius:8px 8px 0 0; }
+  .phase { text-align:center; font-size:18px; margin:10px 0 4px; color:var(--navy); font-weight:bold; }
+  .desc { max-width:1060px; margin:14px auto 8px; background:#fff; border-right:5px solid var(--orange); padding:14px 16px; border-radius:8px; font-size:18px; min-height:64px; box-shadow:0 2px 8px rgba(0,0,0,.05); }
+  .desc.ok { border-right-color:var(--green); background:#eaf6ef; }
+  .controls { display:flex; justify-content:center; gap:10px; flex-wrap:wrap; }
+  button { font-family:inherit; font-size:15px; font-weight:bold; padding:8px 16px; border:none; border-radius:6px; background:var(--navy); color:#fff; cursor:pointer; }
+  button:disabled { background:#b9c0cc; cursor:not-allowed; }
+  .run { background:var(--orange); }
+  .trace { max-width:1060px; margin:14px auto; overflow-x:auto; }
+  table { border-collapse:collapse; margin:0 auto; direction:ltr; font-size:15px; background:#fff; }
+  th, td { border:1px solid #d6dbe6; padding:4px 8px; text-align:center; white-space:nowrap; }
+  th { background:#eef2f9; color:var(--navy); }
+  tr.now td { background:#FDEBDD; font-weight:bold; }
+</style>
+</head>
+<body>
+<h1>מיון זוגי-אי-זוגי בטופולוגיית קו</h1>
+<div class="sub"><span class="en">Odd-Even Transposition Sort</span> – כל תהליך מדבר רק עם השכן שמשמאלו או מימינו</div>
+
+<div class="mode">
+  <button id="m1" class="on" onclick="setMode(1)">ערך אחד לכל תהליך (n = p = 8)</button>
+  <button id="m2" onclick="setMode(2)">בלוקים עם מיזוג-פיצול (n = 16, p = 4)</button>
+</div>
+
+<div class="card">
+  <div class="phase" id="phase"></div>
+  <div class="line" id="line"></div>
+</div>
+<div class="desc" id="desc"></div>
+<div class="controls">
+  <button onclick="reset()">איפוס</button>
+  <button id="prev" onclick="prev()">שלב אחורה</button>
+  <button id="next" onclick="next()">שלב קדימה</button>
+  <button id="auto" class="run" onclick="toggleAuto()">הרצה אוטומטית</button>
+</div>
+<div class="trace"><table id="trace"></table></div>
+
+<script>
+const INPUT1 = [4, 2, 7, 8, 5, 1, 3, 6];                                   /* the textbook example */
+const INPUT2 = [88, 50, 28, 25, 98, 80, 43, 42, 17, 63, 5, 71, 36, 9, 54, 12];
+let mode = 1, states = [], cur = 0, timer = null;
+
+function build() {
+  const p = mode === 1 ? 8 : 4;
+  const input = mode === 1 ? INPUT1 : INPUT2;
+  const b = input.length / p;
+  let blocks = [...Array(p)].map((_, i) => input.slice(i * b, (i + 1) * b));
+  states = [];
+  if (mode === 1) {
+    states.push({ blocks: blocks.map(x => [...x]), pairs: [], label: 'מצב התחלתי',
+      desc: 'כל תהליך מחזיק מספר אחד. התהליכים מסודרים בקו: P0 משמאל ו-P7 מימין. בסוף המיון P0 צריך להחזיק את הקטן ביותר.' });
+  } else {
+    states.push({ blocks: blocks.map(x => [...x]), pairs: [], label: 'מצב התחלתי',
+      desc: 'כל תהליך מחזיק בלוק של n/p = 4 מספרים. הבלוקים עדיין לא ממוינים.' });
+    blocks = blocks.map(x => [...x].sort((u, v) => u - v));
+    states.push({ blocks: blocks.map(x => [...x]), pairs: [], label: 'מיון מקומי',
+      desc: 'כל תהליך ממיין את הבלוק שלו באופן סדרתי. זה השלב היחיד שאין בו תקשורת.' });
+  }
+  for (let ph = 0; ph < p; ph++) {
+    const even = ph % 2 === 0, pairs = [];
+    for (let i = even ? 0 : 1; i + 1 < p; i += 2) pairs.push([i, i + 1]);
+    const moved = [];
+    const before = blocks.map(x => [...x]);
+    pairs.forEach(([l, r]) => {
+      const all = [...blocks[l], ...blocks[r]].sort((u, v) => u - v);
+      blocks[l] = all.slice(0, b); blocks[r] = all.slice(b);
+      if (blocks[l].join() !== before[l].join()) moved.push(l, r);
+    });
+    const names = '<bdi dir="ltr">' + pairs.map(([l, r]) => `(P${l},P${r})`).join(' ') + '</bdi>';
+    const idle = [...Array(p).keys()].filter(i => !pairs.some(q => q.includes(i)));
+    let desc = `פעימה ${ph} (${even ? 'זוגית' : 'אי-זוגית'}): הזוגות ${names} מחליפים ${mode === 1 ? 'ערכים' : 'בלוקים שלמים'}` +
+               ` בבת אחת. בכל זוג השמאלי שומר את ${mode === 1 ? 'הקטן' : 'החצי הקטן'} והימני את ${mode === 1 ? 'הגדול' : 'החצי הגדול'}.`;
+    if (idle.length) desc += ` <bdi dir="ltr">${idle.map(i => 'P' + i).join(', ')}</bdi> ללא שותף בפעימה זו.`;
+    if (!moved.length) desc += ' אף ערך לא זז בפעימה הזו.';
+    states.push({ blocks: blocks.map(x => [...x]), pairs, moved, idle, label: `פעימה ${ph} – ${even ? 'זוגית' : 'אי-זוגית'}`, desc });
+  }
+  states.push({ blocks: blocks.map(x => [...x]), pairs: [], final: true, label: 'סיום',
+    desc: mode === 1
+      ? 'אחרי n = 8 פעימות המערך ממוין, גם אם המיון הסתיים מוקדם יותר. התהליכים לא בודקים אם המערך כבר ממוין, כי בדיקה כזו דורשת תקשורת גלובלית.'
+      : 'אחרי p = 4 פעימות של מיזוג-פיצול כל הבלוקים ממוינים, וגם כל בלוק קטן מהבלוק שמימינו. כל פעימה עולה O(n/p) חישוב והעברה של בלוק אחד.',
+    cls: 'ok' });
+  cur = 0; render();
+}
+
+function render() {
+  const s = states[cur], line = document.getElementById('line');
+  line.innerHTML = '';
+  s.blocks.forEach((blk, i) => {
+    const inPair = s.pairs.some(q => q.includes(i));
+    const d = document.createElement('div'); d.className = 'proc';
+    const cls = 'vals' + (inPair ? ' pair' : '') + (s.idle && s.idle.includes(i) ? ' idle' : '');
+    d.innerHTML = `<div class="${cls}" id="v${i}">` +
+      blk.map(v => `<span class="num ${s.final ? 'final' : (s.moved && s.moved.includes(i) ? 'moved' : '')}">${v}</span>`).join('') +
+      `</div><div class="name">P${i}</div>`;
+    line.appendChild(d);
+  });
+  requestAnimationFrame(() => {               // brackets over each pair
+    s.pairs.forEach(([l, r]) => {
+      const a = document.getElementById('v' + l), b = document.getElementById('v' + r);
+      const box = line.getBoundingClientRect(), ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect();
+      const br = document.createElement('div'); br.className = 'bracket';
+      br.style.left = (ra.left + ra.width / 2 - box.left) + 'px';
+      br.style.width = (rb.left + rb.width / 2 - ra.left - ra.width / 2) + 'px';
+      line.appendChild(br);
+    });
+  });
+  document.getElementById('phase').textContent = s.label;
+  const d = document.getElementById('desc'); d.innerHTML = s.desc; d.className = 'desc' + (s.cls ? ' ' + s.cls : '');
+  const p = s.blocks.length;
+  let t = '<tr><th>step</th>' + [...Array(p).keys()].map(i => `<th>P${i}</th>`).join('') + '</tr>';
+  states.forEach((st, k) => {
+    if (k > cur) return;
+    t += `<tr class="${k === cur ? 'now' : ''}"><td>${k}</td>` + st.blocks.map(x => `<td>${x.join(' ')}</td>`).join('') + '</tr>';
+  });
+  document.getElementById('trace').innerHTML = t;
+  document.getElementById('prev').disabled = cur === 0;
+  document.getElementById('next').disabled = cur === states.length - 1;
+  if (cur === states.length - 1) stopAuto();
+}
+function next() { if (cur < states.length - 1) { cur++; render(); } }
+function prev() { if (cur > 0) { cur--; render(); } }
+function reset() { stopAuto(); cur = 0; render(); }
+function setMode(m) {
+  mode = m;
+  document.getElementById('m1').className = m === 1 ? 'on' : '';
+  document.getElementById('m2').className = m === 2 ? 'on' : '';
+  stopAuto(); build();
+}
+function toggleAuto() {
+  if (timer) { stopAuto(); return; }
+  if (cur === states.length - 1) cur = 0;
+  document.getElementById('auto').textContent = 'עצירה';
+  timer = setInterval(next, 1800); render();
+}
+function stopAuto() { if (timer) clearInterval(timer); timer = null; document.getElementById('auto').textContent = 'הרצה אוטומטית'; }
+document.addEventListener('keydown', e => { if (e.key === 'ArrowLeft') next(); if (e.key === 'ArrowRight') prev(); });
+window.addEventListener('resize', render);
+build();
+</script>
+</body>
+</html>
