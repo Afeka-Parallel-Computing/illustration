@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>זיהוי סיום בטבעת – חד-מעברי מול טבעת כפולה</title>
+<style>
+  :root { --navy:#14213D; --orange:#E8772E; --bg:#EEF2F8; --card:#FFFFFF; --muted:#6B7280; --red:#C0392B; --green:#2E7D5B; }
+  * { box-sizing:border-box; }
+  body { font-family:'Assistant','Segoe UI',Arial,sans-serif; background:var(--bg); color:#1F2937; margin:0; padding:18px; }
+  h1 { color:var(--navy); margin:0 0 4px; font-size:28px; text-align:center; }
+  .sub { text-align:center; color:var(--muted); margin-bottom:14px; font-size:16px; }
+  .en { direction:ltr; unicode-bidi:isolate; }
+  .mode { display:flex; justify-content:center; gap:10px; margin-bottom:12px; }
+  .mode button { background:#dfe5f0; color:var(--navy); }
+  .mode button.on { background:var(--navy); color:#fff; }
+  .layout { display:flex; gap:18px; justify-content:center; align-items:flex-start; flex-wrap:wrap; }
+  .card { background:var(--card); border-radius:10px; box-shadow:0 2px 10px rgba(0,0,0,.07); padding:14px; }
+  svg { width:520px; height:470px; display:block; }
+  .rules { width:360px; font-size:15px; line-height:1.5; }
+  .rules h3 { margin:4px 0 6px; color:var(--navy); font-size:17px; }
+  .rules li { margin-bottom:4px; }
+  table { border-collapse:collapse; width:100%; margin-top:10px; font-size:15px; }
+  th, td { border:1px solid #d6dbe6; padding:5px 6px; text-align:center; }
+  th { background:#eef2f9; color:var(--navy); }
+  .pill { display:inline-block; padding:1px 8px; border-radius:10px; font-weight:bold; font-size:13px; }
+  .pw { background:#fff; border:1px solid #888; color:#222; }
+  .pb { background:#111; color:#fff; }
+  .desc { max-width:900px; margin:14px auto 8px; background:#fff; border-right:5px solid var(--orange); padding:14px 16px; border-radius:8px; font-size:18px; min-height:70px; box-shadow:0 2px 8px rgba(0,0,0,.05); }
+  .desc.err { border-right-color:var(--red); background:#fdecea; }
+  .desc.ok { border-right-color:var(--green); background:#eaf6ef; }
+  .controls { display:flex; justify-content:center; gap:10px; flex-wrap:wrap; }
+  button { font-family:inherit; font-size:15px; font-weight:bold; padding:8px 16px; border:none; border-radius:6px; background:var(--navy); color:#fff; cursor:pointer; }
+  button:disabled { background:#b9c0cc; cursor:not-allowed; }
+  .run { background:var(--orange); }
+  .counter { text-align:center; color:var(--muted); margin-top:6px; }
+</style>
+</head>
+<body>
+<h1>זיהוי סיום בטבעת</h1>
+<div class="sub"><span class="en">Ring Termination Detection</span> – הפעלה מחדש של תהליך אחרי שהאסימון כבר עבר אותו</div>
+
+<div class="mode">
+  <button id="m-dual" class="on" onclick="setMode('dual')">טבעת כפולה (נכון)</button>
+  <button id="m-single" onclick="setMode('single')">טבעת חד-מעברית (נכשל)</button>
+</div>
+
+<div class="layout">
+  <div class="card"><svg id="ring" viewBox="0 0 520 470"></svg></div>
+  <div class="card rules">
+    <h3>מצב התהליכים</h3>
+    <table id="state"></table>
+    <h3 style="margin-top:14px">הכללים</h3>
+    <ul id="rules"></ul>
+  </div>
+</div>
+
+<div class="desc" id="desc"></div>
+<div class="controls">
+  <button onclick="reset()">איפוס</button>
+  <button id="prev" onclick="prev()">שלב אחורה</button>
+  <button id="next" onclick="next()">שלב קדימה</button>
+  <button id="auto" class="run" onclick="toggleAuto()">הרצה אוטומטית</button>
+</div>
+<div class="counter" id="counter"></div>
+
+<script>
+const N = 4, CX = 260, CY = 235, R = 165;
+const pos = [...Array(N)].map((_, i) => {
+  const a = -Math.PI / 2 + i * 2 * Math.PI / N;
+  return { x: CX + R * Math.cos(a), y: CY + R * Math.sin(a) };
+});
+
+/* state: tasks[], color[] ('W'/'B'), token {at, color}, msg {from,to} optional, cls '', desc */
+const common = [
+  { tasks:[0,1,0,3], color:'WWWW', token:{at:0,c:'W'}, desc:'מצב התחלתי. ל-P0 אין עבודה, ל-P1 משימה אחת ול-P3 שלוש משימות. P0 מחזיק את האסימון.' },
+  { tasks:[0,1,0,3], color:'WWWW', token:{at:1,c:'W'}, desc:'P0 פסיבי (אין לו משימות), ולכן הוא מייצר אסימון לבן ומעביר אותו ל-P1. האסימון ממתין ב-P1 עד ש-P1 יסיים.' },
+  { tasks:[0,0,0,3], color:'WWWW', token:{at:2,c:'W'}, desc:'P1 סיים את המשימה שלו והפך לפסיבי, ולכן העביר את האסימון ל-P2.' },
+  { tasks:[0,0,0,3], color:'WWWW', token:{at:3,c:'W'}, desc:'P2 פסיבי ומעביר את האסימון מיד ל-P3. P3 עדיין עובד, והאסימון ממתין אצלו.' },
+];
+
+const scenarios = {
+  dual: [
+    ...common,
+    { tasks:[0,1,0,2], color:'WWWB', token:{at:3,c:'W'}, msg:{from:3,to:1},
+      desc:'P3 שולח משימה ל-P1, כלומר אחורה בטבעת (<bdi dir="ltr">1 &lt; 3</bdi>). P1 מופעל מחדש אחרי שהאסימון כבר עבר אותו. לכן P3 נצבע שחור.' },
+    { tasks:[0,1,0,0], color:'WWWW', token:{at:0,c:'B'},
+      desc:'P3 סיים וקיבל אישור על המשימה ששלח. הוא מעביר את האסימון: תהליך שחור צובע את האסימון בשחור. אחרי ההעברה P3 חוזר להיות לבן.' },
+    { tasks:[0,1,0,0], color:'WWWW', token:{at:1,c:'W'},
+      desc:'P0 קיבל אסימון שחור, ולכן אסור להכריז על סיום. P0 משגר סבב נוסף עם אסימון לבן.' },
+    { tasks:[0,0,0,0], color:'WWWW', token:{at:2,c:'W'},
+      desc:'האסימון המתין ב-P1 עד שסיים את המשימה שקיבל, ורק אז עבר ל-P2.' },
+    { tasks:[0,0,0,0], color:'WWWW', token:{at:3,c:'W'}, desc:'P2 לבן ופסיבי, ולכן מעביר את האסימון בצבע שקיבל (לבן).' },
+    { tasks:[0,0,0,0], color:'WWWW', token:{at:0,c:'W'}, desc:'P3 לבן ופסיבי ומחזיר את האסימון הלבן ל-P0.' },
+    { tasks:[0,0,0,0], color:'WWWW', token:{at:0,c:'W'}, cls:'ok', done:true,
+      desc:'P0 קיבל אסימון לבן, והוא עצמו לבן ופסיבי. זה סיום גלובלי, ו-P0 שולח הודעת סיום לכל התהליכים.' },
+  ],
+  single: [
+    ...common,
+    { tasks:[0,1,0,2], color:'WWWW', token:{at:3,c:'W'}, msg:{from:3,to:1},
+      desc:'P3 שולח משימה ל-P1 (אחורה בטבעת). באלגוריתם החד-מעברי אין צבעים, ולכן אין שום סימון לכך ש-P1 הופעל מחדש.' },
+    { tasks:[0,1,0,0], color:'WWWW', token:{at:0,c:'W'},
+      desc:'P3 סיים ומעביר את האסימון ל-P0.' },
+    { tasks:[0,1,0,0], color:'WWWW', token:{at:0,c:'W'}, cls:'err', done:true,
+      desc:'שגיאה: P0 מכריז על סיום גלובלי, אבל ל-P1 עדיין יש משימה. האלגוריתם החד-מעברי מניח שתהליך שסיים לא יופעל מחדש, וההנחה הזו לא מתקיימת במאגר עבודה.' },
+  ],
+};
+
+const rulesText = {
+  dual: [
+    'תהליך מעביר את האסימון רק כשהוא פסיבי: אין לו משימות וכל המשימות ששלח אושרו.',
+    'תהליך ששולח משימה לתהליך שלפניו בטבעת (<bdi dir="ltr">j &lt; i</bdi>) נצבע שחור.',
+    'תהליך שחור מעביר אסימון שחור. תהליך לבן מעביר את האסימון בצבע שקיבל.',
+    'אחרי שתהליך מעביר את האסימון, הוא חוזר להיות לבן.',
+    'P0 מקבל אסימון שחור: משגר אסימון לבן חדש. P0 מקבל אסימון לבן: סיום.',
+  ],
+  single: [
+    'P0 מייצר אסימון כשהוא מסיים.',
+    'כל תהליך מעביר את האסימון כשהוא מסיים.',
+    'אסימון שחזר ל-P0 פירושו "כולם סיימו".',
+    'הנחה סמויה: תהליך שסיים לא יקבל עבודה חדשה.',
+  ],
+};
+
+let mode = 'dual', cur = 0, timer = null;
+const svgNS = 'http://www.w3.org/2000/svg';
+function el(tag, attrs, text) {
+  const e = document.createElementNS(svgNS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
+
+function drawRing(s) {
+  const svg = document.getElementById('ring');
+  svg.innerHTML = '';
+  const defs = el('defs', {});
+  defs.innerHTML = `
+    <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#8a94a8"/></marker>
+    <marker id="ahr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#C0392B"/></marker>`;
+  svg.appendChild(defs);
+  const nodeR = 42;
+  // ring arrows Pi -> Pi+1 as arcs between node borders
+  for (let i = 0; i < N; i++) {
+    const a1 = -Math.PI / 2 + i * 2 * Math.PI / N + 0.30;
+    const a2 = -Math.PI / 2 + (i + 1) * 2 * Math.PI / N - 0.30;
+    const p1 = { x: CX + R * Math.cos(a1), y: CY + R * Math.sin(a1) };
+    const p2 = { x: CX + R * Math.cos(a2), y: CY + R * Math.sin(a2) };
+    svg.appendChild(el('path', { d:`M${p1.x} ${p1.y} A${R} ${R} 0 0 1 ${p2.x} ${p2.y}`, fill:'none', stroke:'#8a94a8', 'stroke-width':3, 'marker-end':'url(#ah)' }));
+  }
+  // task message (backward)
+  if (s.msg) {
+    const a = pos[s.msg.from], b = pos[s.msg.to];
+    const dx = b.x - a.x, dy = b.y - a.y, L = Math.hypot(dx, dy);
+    const sx = a.x + dx / L * nodeR, sy = a.y + dy / L * nodeR;
+    const ex = b.x - dx / L * (nodeR + 4), ey = b.y - dy / L * (nodeR + 4);
+    svg.appendChild(el('path', { d:`M${sx} ${sy} Q${CX} ${CY + 90} ${ex} ${ey}`, fill:'none', stroke:'#C0392B', 'stroke-width':3, 'stroke-dasharray':'8 5', 'marker-end':'url(#ahr)' }));
+    svg.appendChild(el('text', { x:CX, y:CY + 78, 'text-anchor':'middle', 'font-size':15, fill:'#C0392B', 'font-weight':'bold' }, 'משימה אחורה'));
+  }
+  // nodes
+  for (let i = 0; i < N; i++) {
+    const black = s.color[i] === 'B';
+    const active = s.tasks[i] > 0;
+    const g = el('g', {});
+    g.appendChild(el('circle', { cx:pos[i].x, cy:pos[i].y, r:nodeR, fill: black ? '#111' : '#fff', stroke: active ? '#E8772E' : '#14213D', 'stroke-width': active ? 6 : 3 }));
+    g.appendChild(el('text', { x:pos[i].x, y:pos[i].y - 4, 'text-anchor':'middle', 'font-size':22, 'font-weight':'bold', fill: black ? '#fff' : '#14213D' }, 'P' + i));
+    g.appendChild(el('text', { x:pos[i].x, y:pos[i].y + 18, 'text-anchor':'middle', 'font-size':13, fill: black ? '#ddd' : '#6B7280', direction:'ltr' }, 'tasks: ' + s.tasks[i]));
+    svg.appendChild(g);
+  }
+  // token: outside the ring, next to its holder
+  const t = s.token.at;
+  const ang = -Math.PI / 2 + t * 2 * Math.PI / N;
+  const tx = CX + (R + 72) * Math.cos(ang), ty = CY + (R + 58) * Math.sin(ang);
+  const tb = s.token.c === 'B';
+  svg.appendChild(el('circle', { cx:tx, cy:ty, r:20, fill: tb ? '#111' : '#fff', stroke: tb ? '#E8772E' : '#111', 'stroke-width':3 }));
+  svg.appendChild(el('text', { x:tx, y:ty + 5, 'text-anchor':'middle', 'font-size':13, 'font-weight':'bold', fill: tb ? '#fff' : '#111' }, 'T'));
+}
+
+function drawTable(s) {
+  let h = '<tr><th>תהליך</th><th>משימות</th><th>צבע</th><th>מצב</th></tr>';
+  for (let i = 0; i < N; i++) {
+    const colorCell = mode === 'dual'
+      ? (s.color[i] === 'B' ? '<span class="pill pb">שחור</span>' : '<span class="pill pw">לבן</span>')
+      : '–';
+    h += `<tr><td class="en">P${i}</td><td>${s.tasks[i]}</td><td>${colorCell}</td><td>${s.tasks[i] > 0 ? 'פעיל' : 'פסיבי'}</td></tr>`;
+  }
+  const tc = mode === 'dual' ? (s.token.c === 'B' ? 'שחור' : 'לבן') : '';
+  h += `<tr><td colspan="4">האסימון ${tc} נמצא אצל <span class="en">P${s.token.at}</span></td></tr>`;
+  document.getElementById('state').innerHTML = h;
+}
+
+function render() {
+  const list = scenarios[mode], s = list[cur];
+  drawRing(s);
+  drawTable(s);
+  const d = document.getElementById('desc');
+  d.innerHTML = s.desc;
+  d.className = 'desc' + (s.cls ? ' ' + s.cls : '');
+  document.getElementById('rules').innerHTML = rulesText[mode].map(r => `<li>${r}</li>`).join('');
+  document.getElementById('prev').disabled = cur === 0;
+  document.getElementById('next').disabled = cur === list.length - 1;
+  document.getElementById('counter').textContent = `שלב ${cur + 1} מתוך ${list.length}`;
+  if (cur === list.length - 1) stopAuto();
+}
+function next() { if (cur < scenarios[mode].length - 1) { cur++; render(); } }
+function prev() { if (cur > 0) { cur--; render(); } }
+function reset() { stopAuto(); cur = 0; render(); }
+function setMode(m) {
+  mode = m;
+  document.getElementById('m-dual').className = m === 'dual' ? 'on' : '';
+  document.getElementById('m-single').className = m === 'single' ? 'on' : '';
+  reset();
+}
+function toggleAuto() {
+  if (timer) { stopAuto(); return; }
+  if (cur === scenarios[mode].length - 1) cur = 0;
+  document.getElementById('auto').textContent = 'עצירה';
+  timer = setInterval(next, 2600);
+  render();
+}
+function stopAuto() {
+  if (timer) clearInterval(timer);
+  timer = null;
+  document.getElementById('auto').textContent = 'הרצה אוטומטית';
+}
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowLeft') next();      // RTL: left = forward
+  if (e.key === 'ArrowRight') prev();
+});
+render();
+</script>
+</body>
+</html>
