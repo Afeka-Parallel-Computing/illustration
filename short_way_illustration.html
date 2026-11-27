@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>אלגוריתם מור – מאגר עבודה ריכוזי</title>
+<style>
+  :root { --navy:#14213D; --orange:#E8772E; --bg:#EEF2F8; --muted:#6B7280; --green:#2E7D5B; --red:#C0392B; }
+  * { box-sizing:border-box; }
+  body { font-family:'Assistant','Segoe UI',Arial,sans-serif; background:var(--bg); color:#1F2937; margin:0; padding:18px; }
+  h1 { color:var(--navy); margin:0 0 4px; font-size:28px; text-align:center; }
+  .sub { text-align:center; color:var(--muted); margin-bottom:12px; font-size:16px; }
+  .en { direction:ltr; unicode-bidi:isolate; }
+  .top { display:flex; justify-content:center; gap:10px; align-items:center; margin-bottom:12px; font-size:16px; }
+  .layout { display:flex; gap:16px; justify-content:center; align-items:flex-start; flex-wrap:wrap; }
+  .card { background:#fff; border-radius:10px; box-shadow:0 2px 10px rgba(0,0,0,.07); padding:14px; }
+  svg { width:520px; height:330px; display:block; }
+  .side { width:360px; }
+  h3 { margin:2px 0 8px; color:var(--navy); font-size:17px; }
+  .queue { display:flex; gap:6px; min-height:34px; direction:ltr; justify-content:flex-start; flex-wrap:wrap; padding:4px; background:#f7f9fc; border:1px dashed #c4ccda; border-radius:6px; }
+  .qi { background:var(--orange); color:#fff; font-weight:bold; border-radius:14px; padding:3px 12px; }
+  .worker { border:2px solid #c4ccda; border-radius:8px; padding:8px 10px; margin-top:8px; font-size:15px; }
+  .worker.busy { border-color:var(--orange); background:#FDEBDD; }
+  .worker b { color:var(--navy); }
+  .dist { display:flex; gap:4px; direction:ltr; margin-top:6px; }
+  .cell { width:52px; text-align:center; border:1px solid #c4ccda; border-radius:6px; padding:4px 0; background:#fff; }
+  .cell .l { font-size:12px; color:var(--muted); }
+  .cell .v { font-weight:bold; font-size:17px; }
+  .cell.chg { background:#d9f2e3; border-color:var(--green); }
+  .desc { max-width:920px; margin:14px auto 8px; background:#fff; border-right:5px solid var(--orange); padding:14px 16px; border-radius:8px; font-size:18px; min-height:72px; box-shadow:0 2px 8px rgba(0,0,0,.05); }
+  .desc.warn { border-right-color:var(--red); }
+  .desc.ok { border-right-color:var(--green); background:#eaf6ef; }
+  .controls { display:flex; justify-content:center; gap:10px; flex-wrap:wrap; }
+  button, select { font-family:inherit; font-size:15px; font-weight:bold; padding:8px 14px; border:none; border-radius:6px; background:var(--navy); color:#fff; cursor:pointer; }
+  select { background:#fff; color:var(--navy); border:1px solid #c4ccda; }
+  button:disabled { background:#b9c0cc; cursor:not-allowed; }
+  .run { background:var(--orange); }
+  .stats { text-align:center; color:var(--muted); margin-top:6px; font-size:15px; }
+</style>
+</head>
+<body>
+<h1>אלגוריתם מור במאגר עבודה ריכוזי</h1>
+<div class="sub"><span class="en">Moore's Algorithm – Centralized Work Pool</span> – הגרף מהדוגמה של הטיפוס להר</div>
+
+<div class="top">
+  <label for="workers">מספר עובדים:</label>
+  <select id="workers" onchange="build()">
+    <option value="1">1 (שקול לגרסה הסדרתית)</option>
+    <option value="2" selected>2</option>
+    <option value="3">3</option>
+  </select>
+</div>
+
+<div class="layout">
+  <div class="card">
+    <h3>הגרף (משקל = מאמץ הטיפוס)</h3>
+    <svg id="graph" viewBox="0 0 520 330"></svg>
+    <h3 style="margin-top:8px">מערך המרחקים אצל המאסטר <span class="en">dist[]</span></h3>
+    <div class="dist" id="dist"></div>
+  </div>
+  <div class="card side">
+    <h3>תור הצמתים של המאסטר (<span class="en">FIFO</span>)</h3>
+    <div class="queue" id="queue"></div>
+    <div id="workersBox"></div>
+  </div>
+</div>
+
+<div class="desc" id="desc"></div>
+<div class="controls">
+  <button onclick="reset()">איפוס</button>
+  <button id="prev" onclick="prev()">שלב אחורה</button>
+  <button id="next" onclick="next()">שלב קדימה</button>
+  <button id="auto" class="run" onclick="toggleAuto()">הרצה אוטומטית</button>
+</div>
+<div class="stats" id="stats"></div>
+
+<script>
+const NAMES = ['A','B','C','D','E','F'];
+const INF = Infinity;
+const EDGES = [ [0,1,10], [1,2,8], [1,3,13], [1,4,24], [1,5,51], [2,3,14], [3,4,9], [4,5,17] ];
+const P = [ {x:45,y:250}, {x:150,y:150}, {x:230,y:295}, {x:300,y:170}, {x:420,y:260}, {x:470,y:55} ];
+const W = NAMES.map(() => NAMES.map(() => INF));
+EDGES.forEach(([a,b,w]) => W[a][b] = w);
+const fmt = d => d === INF ? '∞' : d;
+const L = t => `<bdi dir="ltr">${t}</bdi>`;   /* keeps code expressions left-to-right */
+
+let states = [], cur = 0, timer = null;
+
+/* Run the work pool algorithm and record a state after every master action.
+   Results come back in the order the tasks were handed out (FIFO). */
+function build() {
+  const k = +document.getElementById('workers').value;
+  const dist = [0, INF, INF, INF, INF, INF];
+  const queue = [0], inQ = [true, false, false, false, false, false];
+  const workers = [...Array(k)].map(() => null);   // {v, copy}
+  const order = [];                                 // busy workers by hand-out time
+  let exams = 0;
+  states = [];
+  const snap = (desc, extra = {}) => states.push({
+    desc, dist:[...dist], queue:[...queue],
+    workers: workers.map(w => w ? { v:w.v, dv:w.copy[w.v] } : null),
+    exams, ...extra });
+
+  snap(`המאסטר מאתחל: ${L('dist[A] = 0')}, כל שאר המרחקים ∞, ו-A נכנס לתור. כל העובדים פנויים.`);
+  while (queue.length || order.length) {
+    // hand out tasks
+    const given = [];
+    for (let w = 0; w < k && queue.length; w++) {
+      if (workers[w]) continue;
+      const v = queue.shift(); inQ[v] = false;
+      workers[w] = { v, copy:[...dist] };
+      order.push(w);
+      given.push(`${NAMES[v]} ← עובד ${w + 1}`);
+    }
+    if (given.length) {
+      const idle = workers.filter(x => !x).length;
+      snap(`המאסטר שולף צמתים מהתור ושולח כל אחד יחד עם עותק של ${L('dist[]')}: ${given.join(', ')}.` +
+           (idle && !queue.length ? ' אין עוד צמתים בתור, ולכן חלק מהעובדים נשארים פנויים.' : ''),
+           { active: given.length ? workers.filter(Boolean).map(x => x.v) : [] });
+    }
+    // receive the oldest result
+    const w = order.shift();
+    const { v, copy } = workers[w];
+    workers[w] = null; exams++;
+    const changed = [], ignored = [], added = [];
+    for (let j = 0; j < 6; j++) {
+      if (W[v][j] === INF) continue;
+      const nd = copy[v] + W[v][j];
+      if (nd < copy[j]) {                              // worker's own filter (old copy)
+        if (nd < dist[j]) {                            // master compares again
+          dist[j] = nd; changed.push(j);
+          if (!inQ[j]) { queue.push(j); inQ[j] = true; added.push(j); }
+        } else ignored.push(`${NAMES[j]}=${nd}`);
+      }
+    }
+    let d = `עובד ${w + 1} החזיר תוצאה עבור ${NAMES[v]}. הוא חישב לפי ${L(`dist[${NAMES[v]}] = ${copy[v]}`)}. `;
+    let cls = '';
+    if (copy[v] !== dist[v]) {
+      d += `שימו לב: בזמן החישוב המרחק ל-${NAMES[v]} כבר השתפר ל-${dist[v]}, כלומר העובד עבד עם ערך ישן. `;
+      cls = 'warn';
+    }
+    if (changed.length) d += `שיפורים: ${L(changed.map(j => NAMES[j] + '=' + dist[j]).join(', '))}. `;
+    else if (!ignored.length) d += 'אין שיפורים. ';
+    if (ignored.length) d += `המאסטר דוחה ${L(ignored.join(', '))} כי כבר יש לו ערך טוב יותר. `;
+    if (added.length) d += `נכנסים לתור: ${added.map(j => NAMES[j]).join(', ')}.`;
+    else if (changed.length) d += 'הצמתים שהשתפרו כבר ממתינים בתור, ולכן לא מוסיפים אותם שוב.';
+    snap(d, { changed, cls, focus:v });
+  }
+  snap(`התור ריק וגם אין עובד עסוק, ולכן החישוב הסתיים והמאסטר שולח STOP לכל העובדים. ` +
+       `המסלול הקצר ביותר ל-F: A → B → D → E → F, במשקל ${dist[5]}. ` +
+       `בוצעו ${exams} בדיקות צמתים עבור גרף עם 6 צמתים.`, { cls:'ok', done:true });
+  cur = 0; render();
+}
+
+const svgNS = 'http://www.w3.org/2000/svg';
+function el(tag, a, t) { const e = document.createElementNS(svgNS, tag); for (const k in a) e.setAttribute(k, a[k]); if (t !== undefined) e.textContent = t; return e; }
+
+function drawGraph(s) {
+  const svg = document.getElementById('graph'); svg.innerHTML = '';
+  const defs = el('defs', {});
+  defs.innerHTML = '<marker id="a" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#8a94a8"/></marker>' +
+                   '<marker id="ao" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#E8772E"/></marker>';
+  svg.appendChild(defs);
+  const active = s.focus !== undefined ? [s.focus] : (s.active || []);
+  EDGES.forEach(([a,b,w]) => {
+    const dx = P[b].x - P[a].x, dy = P[b].y - P[a].y, L = Math.hypot(dx, dy), r = 20;
+    const hot = active.includes(a);
+    svg.appendChild(el('line', { x1:P[a].x + dx / L * r, y1:P[a].y + dy / L * r, x2:P[b].x - dx / L * (r + 2), y2:P[b].y - dy / L * (r + 2),
+      stroke: hot ? '#E8772E' : '#8a94a8', 'stroke-width': hot ? 4 : 2, 'marker-end': hot ? 'url(#ao)' : 'url(#a)' }));
+    const t = (a === 1 && b === 4) ? 0.75 : (a === 2 && b === 3) ? 0.35 : 0.5;   /* B->E and C->D cross */
+    const mx = P[a].x + dx * t - dy / L * 13, my = P[a].y + dy * t + dx / L * 13;
+    svg.appendChild(el('text', { x:mx, y:my + 5, 'text-anchor':'middle', 'font-size':15, 'font-weight':'bold', fill:'#C0392B',
+      stroke:'#fff', 'stroke-width':4, 'paint-order':'stroke' }, w));
+  });
+  NAMES.forEach((n, i) => {
+    const inQ = s.queue.includes(i), hot = active.includes(i);
+    svg.appendChild(el('circle', { cx:P[i].x, cy:P[i].y, r:20, fill: hot ? '#E8772E' : '#14213D', stroke: inQ ? '#F4B400' : '#fff', 'stroke-width': inQ ? 5 : 2 }));
+    svg.appendChild(el('text', { x:P[i].x, y:P[i].y + 6, 'text-anchor':'middle', 'font-size':17, 'font-weight':'bold', fill:'#fff' }, n));
+  });
+}
+
+function render() {
+  const s = states[cur];
+  drawGraph(s);
+  document.getElementById('dist').innerHTML = NAMES.map((n, i) =>
+    `<div class="cell ${s.changed && s.changed.includes(i) ? 'chg' : ''}"><div class="l">${n}</div><div class="v">${fmt(s.dist[i])}</div></div>`).join('');
+  document.getElementById('queue').innerHTML = s.queue.length ? s.queue.map(v => `<span class="qi">${NAMES[v]}</span>`).join('') : '<span style="color:#8a94a8">ריק</span>';
+  document.getElementById('workersBox').innerHTML = s.workers.map((w, i) =>
+    `<div class="worker ${w ? 'busy' : ''}"><b>עובד ${i + 1}</b> · ${L('rank ' + (i + 1))} · ` +
+    (w ? `בודק את ${NAMES[w.v]} לפי ${L(`dist[${NAMES[w.v]}] = ${w.dv}`)}` : 'פנוי') + '</div>').join('');
+  const d = document.getElementById('desc');
+  d.innerHTML = s.desc; d.className = 'desc' + (s.cls ? ' ' + s.cls : '');
+  document.getElementById('prev').disabled = cur === 0;
+  document.getElementById('next').disabled = cur === states.length - 1;
+  document.getElementById('stats').textContent = `שלב ${cur + 1} מתוך ${states.length} · בדיקות צמתים עד כה: ${s.exams}`;
+  if (cur === states.length - 1) stopAuto();
+}
+function next() { if (cur < states.length - 1) { cur++; render(); } }
+function prev() { if (cur > 0) { cur--; render(); } }
+function reset() { stopAuto(); cur = 0; render(); }
+function toggleAuto() {
+  if (timer) { stopAuto(); return; }
+  if (cur === states.length - 1) cur = 0;
+  document.getElementById('auto').textContent = 'עצירה';
+  timer = setInterval(next, 2800); render();
+}
+function stopAuto() { if (timer) clearInterval(timer); timer = null; document.getElementById('auto').textContent = 'הרצה אוטומטית'; }
+document.addEventListener('keydown', e => { if (e.key === 'ArrowLeft') next(); if (e.key === 'ArrowRight') prev(); });
+build();
+</script>
+</body>
+</html>
